@@ -37,7 +37,7 @@ recording_buffer = RecordingBuffer(
 
 
 def audio_callback(indata, frames, time_obj, status):
-   """Process one audio block from the input stream and print detections.
+    """Process one audio block from the input stream and print detections.
 
     Called by `sounddevice` for each incoming audio block. Flattens the
     audio into a 1-D array, updates the global `recording_buffer`, runs
@@ -57,7 +57,7 @@ def audio_callback(indata, frames, time_obj, status):
         Updates the global `recording_buffer.buffer` and writes detection
         summaries to stdout.
     """
-   if status:
+    if status:
         print(status)
 
     timestamp = datetime.now()
