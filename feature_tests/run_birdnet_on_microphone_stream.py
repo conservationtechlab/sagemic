@@ -36,7 +36,7 @@ recording_buffer = RecordingBuffer(
 )
 
 
-def audio_callback(indata, frames, time_obj, status):
+def audio_callback(indata, _frames, _time_obj, status):
     """Process one audio block from the input stream and print detections.
 
     Called by `sounddevice` for each incoming audio block. Flattens the
