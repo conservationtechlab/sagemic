@@ -47,8 +47,8 @@ def audio_callback(indata, _frames, _time_obj, status):
     Args:
         indata (numpy.ndarray): Audio block with shape (frames, channels).
             For this script, channels == 1.
-        frames (int): Number of frames in `indata`.
-        time_obj: Stream timing information provided by `sounddevice`
+        _frames (int): Number of frames in `indata`.
+        _time_obj: Stream timing information provided by `sounddevice`
             (implementation-specific; not used here).
         status (sounddevice.CallbackFlags): Callback status flags; printed
             if any non-OK condition is reported.
