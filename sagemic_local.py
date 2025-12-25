@@ -97,6 +97,7 @@ def main():
     for i, dev in enumerate(devices):
         print(f"  {i}: {dev['name']}")
 
+    sd.default.device = 1
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
