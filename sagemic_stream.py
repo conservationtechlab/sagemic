@@ -8,9 +8,10 @@ window size and detections above a confidence threshold are printed.
 """
 import time
 from datetime import datetime
-
+import subprocess
+import sys
 import numpy as np
-import sounddevice as sd
+
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
@@ -25,6 +26,8 @@ BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
+STREAM_URL = "http://10.64.0.165:8000/mystream"
+
 analyzer = Analyzer()
 
 recording_buffer = RecordingBuffer(
@@ -36,7 +39,7 @@ recording_buffer = RecordingBuffer(
 )
 
 
-def audio_callback(indata, frames, time_obj, status):
+def audio_callback(indata, _frames, _time_obj, status):
     """Process one audio block from the input stream and print detections.
 
     Called by `sounddevice` for each incoming audio block. Flattens the
@@ -47,8 +50,8 @@ def audio_callback(indata, frames, time_obj, status):
     Args:
         indata (numpy.ndarray): Audio block with shape (frames, channels).
             For this script, channels == 1.
-        frames (int): Number of frames in `indata`.
-        time_obj: Stream timing information provided by `sounddevice`
+        _frames (int): Number of frames in `indata`.
+        _time_obj: Stream timing information provided by `sounddevice`
             (implementation-specific; not used here).
         status (sounddevice.CallbackFlags): Callback status flags; printed
             if any non-OK condition is reported.
@@ -85,35 +88,74 @@ def audio_callback(indata, frames, time_obj, status):
         print("No detections")
 
 
-def main():
-    """Open the audio input stream and run continuous BirdNET analysis.
 
-    Lists available audio devices, opens a mono input stream at the configured
-    sample rate and block size, and keeps the main thread alive while the
-    `audio_callback` performs analysis on each block. Press Ctrl+C to stop.
+def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
     """
-    devices = sd.query_devices()
-    print("Available audio devices:")
-    for i, dev in enumerate(devices):
-        print(f"  {i}: {dev['name']}")
+    Start ffmpeg reading from a URL and writing raw float32 mono PCM at SAMPLERATE to stdout.
+    """
+    # -reconnect* flags help for some HTTP sources; harmless if unsupported for your input type.
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel", "error",
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "5",
+        "-i", url,
+        "-vn",
+        "-ac", "1",
+        "-ar", str(SAMPLERATE),
+        "-f", "f32le",
+        "pipe:1",
+    ]
 
-    sd.default.device = 1
-    print("\nListening for birds...")
-    print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
-    print("Press Ctrl+C to stop.")
+    return subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,  # keep for debugging
+        bufsize=0,
+    )
 
-    try:
-        with sd.InputStream(
-            callback=audio_callback,
-            samplerate=SAMPLERATE,
-            channels=1,
-            blocksize=BLOCKSIZE
-        ):
+
+def _read_exactly(pipe, nbytes: int) -> bytes:
+    """
+    Read exactly nbytes from a pipe unless EOF occurs.
+    """
+    chunks = []
+    got = 0
+    while got < nbytes:
+        part = pipe.read(nbytes - got)
+        if not part:
+            break
+        chunks.append(part)
+        got += len(part)
+    return b"".join(chunks)
+
+
+def main():
+    """
+    Open the HTTP audio stream and run inference on rolling 3-second blocks.
+    """
+    bytes_per_sample = 4  # float32
+    block_bytes = BLOCKSIZE * bytes_per_sample
+
+    while True:
+        try:
+            print(f"Connecting to stream: {STREAM_URL}")
+            proc = _start_ffmpeg_stream(STREAM_URL)
+
             while True:
-                time.sleep(1)
-    except KeyboardInterrupt:
-        print("\nReceived keyboard interrupt. Quitting.")
+                raw = _read_exactly(proc.stdout, block_bytes)
 
+                # Convert bytes -> numpy float32 vector
+                block = np.frombuffer(raw, dtype=np.float32)
+
+                # Feed into your existing inference path
+                audio_callback(block, _frames=BLOCKSIZE, _time_obj=None, status=None)
+
+        except KeyboardInterrupt:
+            print("\nStopping.")
+            break
 
 if __name__ == '__main__':
     main()
