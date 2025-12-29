@@ -11,6 +11,7 @@ from datetime import datetime
 import subprocess
 import sys
 import numpy as np
+from scipy.io.wavfile import write
 
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
@@ -26,7 +27,7 @@ BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
-STREAM_URL = "http://10.64.0.165:8000/mystream"
+STREAM_URL = "http://10.24.21.165:8000/mystream"
 
 analyzer = Analyzer()
 
@@ -84,6 +85,7 @@ def audio_callback(indata, _frames, _time_obj, status):
                 name = detection['common_name']
                 confidence = detection['confidence']
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
+                write(f"{timestamp.strftime('%H_%M_%S')}_{name}_{confidence:.2f}.wav", 48000, indata)
     else:
         print("No detections")
 
