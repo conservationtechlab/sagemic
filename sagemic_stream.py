@@ -85,7 +85,7 @@ def audio_callback(indata, _frames, _time_obj, status):
                 name = detection['common_name']
                 confidence = detection['confidence']
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
-                write(f"{timestamp.strftime('%H_%M_%S')}_{name}_{confidence:.2f}.wav", 48000, indata)
+                write(f"{timestamp.strftime('%Y-%m-%d_%H-%M-%S')}_{name}_{confidence:.2f}.wav", 48000, indata)
     else:
         print("No detections")
 
