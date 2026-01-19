@@ -42,8 +42,13 @@ ffplay -rtsp_transport tcp rtsp://<pi ip>:8554/stream
 Listen with headphones if the recorder is in the same room, otherwise you'll hear
 feedback from the playback.
 
+Installation (on remote machine or local machine running inference):
+
+Clone this repo. Install necessary packages.
+
 Input your ip of your pi and other params set for the stream as
-the STREAM_URL in sagemic_stream.py. Run sagemic_stream.py on
+the STREAM_URL in sagemic_stream.py, and set the BASE_PATH to what
+directory you'd like detections saved to. Run sagemic_stream.py on
 your local machine and it will run inference on the rtsp stream
 of audio provided by the remote pi. 
 Note, birdnetlib expects 48kHz input.
