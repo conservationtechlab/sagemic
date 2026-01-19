@@ -24,7 +24,12 @@ paths:
     runOnInit: ffmpeg -f alsa -channels 1 -i hw:3,0 -ar 48000 -acodec libmp3lame -f rtsp -rtsp_transport tcp rtsp://localhost:8554/stream
     runOnInitRestart: yes
 ```
-start server with:
+If mic on pi is a different device (not hw:3,0), run:
+```
+arecord -l
+```
+to see which device to swap in that param.
+Start server with:
 ```
 mediamtx mediamtx.yml
 ```
