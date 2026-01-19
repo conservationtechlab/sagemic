@@ -6,13 +6,11 @@ The stream is chunked into 3-second blocks to match BirdNET’s expected
 window size and detections above a confidence threshold are printed.
 
 """
-import time
 from datetime import datetime
 import subprocess
-import sys
+import os
 import numpy as np
 from scipy.io.wavfile import write
-import os
 
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
@@ -30,7 +28,7 @@ BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
-STREAM_URL = "rtsp://10.24.21.165:8554/stream"
+STREAM_URL = "rtsp://100.90.127.84:8554/stream"
 
 analyzer = Analyzer()
 
@@ -41,6 +39,7 @@ recording_buffer = RecordingBuffer(
     rate=SAMPLERATE,
     buffer=audio_buffer
 )
+
 
 def check_path(date):
     """Create new folder for date to store detections.
@@ -107,17 +106,27 @@ def audio_callback(indata, _frames, _time_obj, status):
                 confidence = detection['confidence']
                 time = timestamp.strftime('%H-%M-%S')
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
-                write(f"{path}/{time}_{name}_{confidence:.2f}.wav", 48000, indata)
+                write(
+                      f"{path}/{time}_{name}_{confidence:.2f}.wav",
+                      48000,
+                      indata
+                     )
     else:
         print("No detections")
 
 
-
 def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
+    """Start ffmpeg stream.
+
+    Start ffmpeg reading from a URL and writing raw float32
+    mono PCM at SAMPLERATE to stdout.
+
+    Args:
+        url (string): URL of the audio stream from the pi.
+
+    Returns:
+        subprocess.Popen: Raw stream output.
     """
-    Start ffmpeg reading from a URL and writing raw float32 mono PCM at SAMPLERATE to stdout.
-    """
-    # -reconnect* flags help for some HTTP sources; harmless if unsupported for your input type.
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -139,8 +148,17 @@ def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
 
 
 def _read_exactly(pipe, nbytes: int) -> bytes:
-    """
+    """Read bytes.
+
     Read exactly nbytes from a pipe unless EOF occurs.
+
+    Args:
+        pipe (subprocess.Popen): Raw output of ffmpeg stream.
+        nbytes (int): Number of bytes needed from stream for
+                      a single 3s recording.
+
+    Returns:
+        bytes: Bytes grabbed from stream.
     """
     chunks = []
     got = 0
@@ -154,8 +172,9 @@ def _read_exactly(pipe, nbytes: int) -> bytes:
 
 
 def main():
-    """
-    Open the HTTP audio stream and run inference on rolling 3-second blocks.
+    """Grab stream in chunked intervals for inference.
+
+    Open the RTSP audio stream and run inference on rolling 3-second blocks.
     """
     bytes_per_sample = 4  # float32
     block_bytes = BLOCKSIZE * bytes_per_sample
@@ -174,11 +193,15 @@ def main():
                 block = np.frombuffer(raw, dtype=np.float32)
 
                 # Feed into your existing inference path
-                audio_callback(block, _frames=BLOCKSIZE, _time_obj=None, status=None)
+                audio_callback(block,
+                               _frames=BLOCKSIZE,
+                               _time_obj=None,
+                               status=None)
 
         except KeyboardInterrupt:
             print("\nStopping.")
             break
+
 
 if __name__ == '__main__':
     main()
