@@ -20,14 +20,16 @@ LONGITUDE = -117.1611
 SAMPLERATE = 48000
 CONFIDENCE_THRESHOLD = 0.1
 
+# Directory to store detected clips by date.
 BASE_PATH = '/home/katiegarwood/sagemic/'
 
-# The BirdNET model expects clips of at least 3 seconds for analysis
+# The BirdNET model expects clips of at least 3 seconds for analysis.
 BLOCK_DURATION = 3
 BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
+# Your stream url.
 STREAM_URL = "rtsp://100.90.127.84:8554/stream"
 
 analyzer = Analyzer()
