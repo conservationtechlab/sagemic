@@ -30,7 +30,7 @@ BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
-STREAM_URL = "http://10.24.21.165:8000/mystream"
+STREAM_URL = "rtsp://10.24.21.165:8554/stream"
 
 analyzer = Analyzer()
 
@@ -122,9 +122,6 @@ def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
         "ffmpeg",
         "-hide_banner",
         "-loglevel", "error",
-        "-reconnect", "1",
-        "-reconnect_streamed", "1",
-        "-reconnect_delay_max", "5",
         "-i", url,
         "-vn",
         "-ac", "1",
@@ -170,6 +167,8 @@ def main():
 
             while True:
                 raw = _read_exactly(proc.stdout, block_bytes)
+                if len(raw) != block_bytes:
+                    raise RuntimeError("stream ended or stalled")
 
                 # Convert bytes -> numpy float32 vector
                 block = np.frombuffer(raw, dtype=np.float32)
