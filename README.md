@@ -83,5 +83,5 @@ your local machine and it will run inference on the rtsp stream
 of audio provided by the remote pi. 
 Note, birdnetlib expects 48kHz input.
 
-
-
+References:
+rtsp streaming: https://github.com/tphakala/birdnet-go/discussions/224#discussioncomment-9837887
