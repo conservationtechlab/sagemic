@@ -33,8 +33,38 @@ Start server with:
 ```
 mediamtx mediamtx.yml
 ```
-Make a systemd service to start the service on boot.
+If you'd like the stream to start automatically, after reboots
+make it a systemd service:
+```
+sudo nano /etc/systemd/system/mediamtx.service
+```
+Paste this into the opened file:
+```
+[Unit]
+Description=MediaMTX RTSP/RTMP Server
+After=network.target
+Wants=network.target
 
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mediamtx /home/ctl/mediamtx.yml
+Restart=on-failure
+RestartSec=5
+User=<YOUR USER>
+WorkingDirectory=<HOME DIR>
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+Replace your user and your home directory, save and close.
+```
+sudo systemctl daemon-reload
+sudo systemctl enable mediamtx
+sudo systemctl start mediamtx
+```
 To test your stream, on your local machine run:
 ```
 ffplay -rtsp_transport tcp rtsp://<pi ip>:8554/stream
