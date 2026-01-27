@@ -10,6 +10,7 @@ from datetime import datetime
 import subprocess
 import os
 import numpy as np
+import time
 from scipy.io.wavfile import write
 
 from birdnetlib import RecordingBuffer
@@ -21,7 +22,7 @@ SAMPLERATE = 48000
 CONFIDENCE_THRESHOLD = 0.1
 
 # Directory to store detected clips by date.
-BASE_PATH = '<folder to store detection clips>'
+BASE_PATH = '<path to store detections>'
 
 # The BirdNET model expects clips of at least 3 seconds for analysis.
 BLOCK_DURATION = 3
@@ -30,7 +31,7 @@ BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
 
 # Your stream url.
-STREAM_URL = "rtsp://<your pi ip>:8554/stream"
+STREAM_URL = "rtsp://<pi ip>:8554/stream"
 
 analyzer = Analyzer()
 
@@ -133,6 +134,11 @@ def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
         "ffmpeg",
         "-hide_banner",
         "-loglevel", "error",
+        "-rtsp_transport", "tcp",
+        "-fflags", "nobuffer",
+        "-flags", "low_delay",
+        "-analyzeduration", "0",
+        "-probesize", "32",
         "-i", url,
         "-vn",
         "-ac", "1",
@@ -166,10 +172,12 @@ def _read_exactly(pipe, nbytes: int) -> bytes:
     got = 0
     while got < nbytes:
         part = pipe.read(nbytes - got)
+        # print(part)
         if not part:
             break
         chunks.append(part)
         got += len(part)
+        # print(got)
     return b"".join(chunks)
 
 
@@ -180,14 +188,17 @@ def main():
     """
     bytes_per_sample = 4  # float32
     block_bytes = BLOCKSIZE * bytes_per_sample
-
+    print(f"block_bytes expected per grab: {block_bytes}")
     while True:
         try:
             print(f"Connecting to stream: {STREAM_URL}")
             proc = _start_ffmpeg_stream(STREAM_URL)
 
             while True:
+                start_time = time.perf_counter()
                 raw = _read_exactly(proc.stdout, block_bytes)
+                end_time = time.perf_counter()
+                print(f"elapsed time for read exactly: {end_time - start_time}")
                 if len(raw) != block_bytes:
                     raise RuntimeError("stream ended or stalled")
 
@@ -195,10 +206,13 @@ def main():
                 block = np.frombuffer(raw, dtype=np.float32)
 
                 # Feed into your existing inference path
+                start_time = time.perf_counter()
                 audio_callback(block,
                                _frames=BLOCKSIZE,
                                _time_obj=None,
                                status=None)
+                end_time = time.perf_counter()
+                print(f"elapsed time for inference: {end_time - start_time}")
 
         except KeyboardInterrupt:
             print("\nStopping.")
