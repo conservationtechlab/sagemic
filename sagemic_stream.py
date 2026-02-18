@@ -7,10 +7,12 @@ window size and detections above a confidence threshold are printed.
 
 """
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import subprocess
 import os
 import numpy as np
 import time
+import selectors
 from scipy.io.wavfile import write
 
 from birdnetlib import RecordingBuffer
@@ -20,6 +22,8 @@ LATITUDE = 32.7157
 LONGITUDE = -117.1611
 SAMPLERATE = 48000
 CONFIDENCE_THRESHOLD = 0.1
+
+LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 # Directory to store detected clips by date.
 BASE_PATH = '<path to store detections>'
@@ -86,7 +90,7 @@ def audio_callback(indata, _frames, _time_obj, status):
     if status:
         print(status)
 
-    timestamp = datetime.now()
+    timestamp = datetime.now(LOCAL_TZ)
     date = timestamp.strftime('%Y-%m-%d')
     path = check_path(date)
     # Flatten the data to a 1D array as expected by birdnetlib
@@ -155,7 +159,7 @@ def _start_ffmpeg_stream(url: str) -> subprocess.Popen:
     )
 
 
-def _read_exactly(pipe, nbytes: int) -> bytes:
+def _read_exactly(pipe, nbytes: int, stall_timeout_s: float = 1.0) -> bytes:
     """Read bytes.
 
     Read exactly nbytes from a pipe unless EOF occurs.
@@ -168,16 +172,27 @@ def _read_exactly(pipe, nbytes: int) -> bytes:
     Returns:
         bytes: Bytes grabbed from stream.
     """
+    sel = selectors.DefaultSelector()
+    sel.register(pipe, selectors.EVENT_READ)
+
     chunks = []
     got = 0
     while got < nbytes:
+        events = sel.select(timeout=stall_timeout_s)
+        if not events:
+            # stalled: nothing became readable within timeout
+            break
         part = pipe.read(nbytes - got)
-        # print(part)
         if not part:
             break
         chunks.append(part)
         got += len(part)
-        # print(got)
+
+    try:
+        sel.unregister(pipe)
+    except Exception:
+        pass
+
     return b"".join(chunks)
 
 
@@ -196,11 +211,17 @@ def main():
 
             while True:
                 start_time = time.perf_counter()
-                raw = _read_exactly(proc.stdout, block_bytes)
+                raw = _read_exactly(proc.stdout, block_bytes, stall_timeout_s=1.1)
                 end_time = time.perf_counter()
                 print(f"elapsed time for read exactly: {end_time - start_time}")
-                if len(raw) != block_bytes:
-                    raise RuntimeError("stream ended or stalled")
+                grab_s = end_time - start_time
+                # If we stalled/lagged, skip inference and reconnect
+                if len(raw) != block_bytes or grab_s > 3.7:
+                    print("[stream] lag/stall -> restarting ffmpeg (skipping inference on this block)")
+                    proc.kill()
+                    proc.wait(timeout=1)
+                    time.sleep(0.5)
+                    break
 
                 # Convert bytes -> numpy float32 vector
                 block = np.frombuffer(raw, dtype=np.float32)
