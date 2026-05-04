@@ -1,3 +1,9 @@
 [project]
 name = "sagemic"
 version = "0.0.0"
+dependencies = [
+    "birdnetlib"
+]
+
+[tool.setuptools]
+packages = ["sagemic"]

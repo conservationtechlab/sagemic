@@ -8,16 +8,27 @@ window size and detections above a confidence threshold are printed.
 """
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import sounddevice as sd
+from scipy.io.wavfile import write
+
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
+
+from sagemic.helpers import check_path
+
 
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
 SAMPLERATE = 48000
 CONFIDENCE_THRESHOLD = 0.1
+
+LOCAL_TZ = ZoneInfo("America/Los_Angeles")
+
+# Directory to store detected clips by date.
+BASE_PATH = '/home/pi/sagemic/sagemic_ridge/'
 
 # The BirdNET model expects clips of at least 3 seconds for analysis
 BLOCK_DURATION = 3
@@ -60,7 +71,9 @@ def audio_callback(indata, frames, time_obj, status):
     if status:
         print(status)
 
-    timestamp = datetime.now()
+    timestamp = datetime.now(LOCAL_TZ)
+    date = timestamp.strftime('%Y-%m-%d')
+    path = check_path(date)
 
     # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
@@ -80,7 +93,13 @@ def audio_callback(indata, frames, time_obj, status):
             if detection['confidence'] > CONFIDENCE_THRESHOLD:
                 name = detection['common_name']
                 confidence = detection['confidence']
+                time = timestamp.strftime('%H-%M-%S')
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
+                write(
+                      f"{path}/{time}_{name}_{confidence:.2f}.wav",
+                      48000,
+                      indata
+                     )
     else:
         print("No detections")
 

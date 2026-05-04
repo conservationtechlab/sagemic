@@ -1,11 +1,26 @@
 # sagemic
 Real-time detection and classification of bioacoustic events on field devices built around microphone-enabled single-board computers, with capabilities to do inference on-device and via streaming data to a remote server. 
 
-## SageMic Local
+## SageMic
+
+Clone this repo on your Pi 3B/4B (Tested on Buster, Bookworm and Trixie)
+
+In the repo, create a python environment (For Bookworm and Trixie, Python3 does not need to be specified, but for Buster it does because default is Python2.7.
+
+```
+python3 -m venv .sagemic
+source .sagemic/bin/activate
+pip install -e .
+```
+
+Change the save path to either a mounted drive (if running on a local network) or the desired local storage.
+
+##TODO Make method for periodic data transfer when service is intermittent.
+
 Inference runs on board the remote device (raspberry pi).
 
 
-## SageMic Streaming
+## Birdbler
 Device streams its audio to a local server where inference runs there. 
 
 Installation (on Pi):
