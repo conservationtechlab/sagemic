@@ -18,6 +18,9 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
+from sagemic.helpers import check_path
+
+
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
 SAMPLERATE = 48000
@@ -46,24 +49,6 @@ recording_buffer = RecordingBuffer(
     rate=SAMPLERATE,
     buffer=audio_buffer
 )
-
-
-def check_path(date):
-    """Create new folder for date to store detections.
-
-    Args:
-        date (str): Current date in YYYY-MM-DD.
-
-    Returns:
-        str: The path for where the detections will be stored that day.
-    """
-    new_path = os.path.join(BASE_PATH, date)
-    print(new_path)
-    if not os.path.exists(new_path):
-        os.makedirs(new_path)
-        print(f"Directory created: {os.path.abspath(new_path)}")
-
-    return new_path
 
 
 def audio_callback(indata, _frames, _time_obj, status):
