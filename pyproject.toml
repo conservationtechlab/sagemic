@@ -2,7 +2,10 @@
 name = "sagemic"
 version = "0.0.0"
 dependencies = [
-    "birdnetlib"
+    "birdnetlib",
+    "sounddevice",
+    "scipy",
+    "librosa"
 ]
 
 [tool.setuptools]

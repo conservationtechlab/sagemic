@@ -11,6 +11,7 @@ In the repo, create a python environment (For Bookworm and Trixie, Python3 does 
 python3 -m venv .sagemic
 source .sagemic/bin/activate
 pip install -e .
+sudo apt-get install libportaudio2
 ```
 
 Change the save path to either a mounted drive (if running on a local network) or the desired local storage.
