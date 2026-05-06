@@ -28,7 +28,7 @@ CONFIDENCE_THRESHOLD = 0.1
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 # Directory to store detected clips by date.
-BASE_PATH = '/home/pi/sagemic/sagemic_ridge/'
+BASE_PATH = '/path/to/store/detections'
 
 # The BirdNET model expects clips of at least 3 seconds for analysis
 BLOCK_DURATION = 3
@@ -73,7 +73,7 @@ def audio_callback(indata, frames, time_obj, status):
 
     timestamp = datetime.now(LOCAL_TZ)
     date = timestamp.strftime('%Y-%m-%d')
-    path = check_path(date)
+    path = check_path(date, BASE_PATH)
 
     # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
@@ -116,7 +116,7 @@ def main():
     for i, dev in enumerate(devices):
         print(f"  {i}: {dev['name']}")
 
-    sd.default.device = 1
+    sd.default.device = 12
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")

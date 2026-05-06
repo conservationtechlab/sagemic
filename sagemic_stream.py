@@ -77,7 +77,7 @@ def audio_callback(indata, _frames, _time_obj, status):
 
     timestamp = datetime.now(LOCAL_TZ)
     date = timestamp.strftime('%Y-%m-%d')
-    path = check_path(date)
+    path = check_path(date, BASE_PATH)
     # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
 
