@@ -5,7 +5,8 @@ dependencies = [
     "birdnetlib",
     "sounddevice",
     "scipy",
-    "librosa"
+    "librosa",
+    "tensorflow"
 ]
 
 [tool.setuptools]
