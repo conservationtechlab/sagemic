@@ -94,7 +94,7 @@ def audio_callback(indata, _frames, _time_obj, status):
         print("At least one detection.")
         for detection in detections:
             if detection['confidence'] > CONFIDENCE_THRESHOLD:
-                name = detection['scientific_name'].replace(" ", "_").lower()
+                name = detection['scientific_name'].replace(" ", "_")
                 confidence = detection['confidence']
                 time = timestamp.strftime('%H-%M-%S')
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
