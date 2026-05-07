@@ -3,13 +3,28 @@ Real-time detection and classification of bioacoustic events on field devices bu
 
 ## SageMic
 
-Clone this repo on your Pi 3B/4B (Tested on Buster, Bookworm and Trixie)
+Clone this repo on your Pi 4B (Trixie)
 
-In the repo, create a python environment (For Bookworm and Trixie, Python3 does not need to be specified, but for Buster it does because default is Python2.7.
+In the repo, create a python environment. If using Trixie, Python3.11 needs to be
+installed because Tensorflow is not yet fully comptaible with Python3.13, which is what Trixie has. 
+
+To create a non-replacing install of Python3.11, run these commands to build an alternate install of Python3.11 we can use in our venv.
 
 ```
-python3 -m venv .sagemic
+su - root
+apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev libxml2-dev libxslt1-dev
+cd ~ && wget https://www.python.org/ftp/python/3.11.13/Python-3.11.13.tar.xz
+tar xvf Python-3.11.13.tar.xz && cd Python-3.11.13
+./configure --enable-optimizations --with-ensurepip=install
+make -j $(nproc) && make altinstall
+
+python3.11 -m venv .sagemic
+
 source .sagemic/bin/activate
+```
+
+```
+cd ~/sagemic
 pip install -e .
 sudo apt-get install libportaudio2
 ```
