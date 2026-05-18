@@ -1,3 +1,17 @@
+### send_file.py
+
+This script is to test the ability of the end-device (sagemic) to successfully publish a message to the TBMQ broker. 
+One will need to head over to the site to create the session ID, username, and password of the client device to input in this script.
+
+You will need the public certificate on the device to validate the TLS communication with the remote host. Contact the system admin for TBMQ to obtain.
+
+### run_birdnet_on_microphone_stream.py
+
+This script validates the functionality of the sagemic device's connectivity and proper configuration of the microphone, and the 
+package dependency installs. It will allow you to select the sounddevice (microphone) to use, and will run inference using birdnet. 
+If the environment is properly configured, this will show that the device is ready to run Sagemic (local inference) or Birbler (audio streaming).
+
+### Setting up the TBMQ broker
 We are using TBMQ (ThingsBoard MQTT Broker) to recieve and publish messages
 from our Sagemics.
 
