@@ -121,3 +121,4 @@ Note, birdnetlib expects 48kHz input.
 
 References:
 rtsp streaming: https://github.com/tphakala/birdnet-go/discussions/224#discussioncomment-9837887
+downgrading python version on Trixie for tensorflow compatibility: https://github.com/open-webui/open-webui/discussions/17994
