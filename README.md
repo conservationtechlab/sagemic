@@ -2,8 +2,12 @@
 Real-time detection and classification of bioacoustic events on field devices built around microphone-enabled single-board computers, with capabilities to do inference on-device and via streaming data to a remote server. 
 
 ## SageMic
+Currently: sagemic_local.py
+Sagemic is an acoustic inference device that runs Birdnet actively using a USB microphone and stores detections locally. 
 
-Clone this repo on your Pi 4B (Trixie)
+Current versions in development include LTE enabled and Wifi Halow versions where detections are sent to an MQTT Broker.
+
+Clone this repo on your Pi 4B (Full Desktop version of Trixie OS)
 
 In the repo, create a python environment. If using Trixie, Python3.11 needs to be
 installed because Tensorflow is not yet fully comptaible with Python3.13, which is what Trixie has. 
@@ -36,7 +40,8 @@ Change the save path to either a mounted drive (if running on a local network) o
 Inference runs on board the remote device (raspberry pi).
 
 
-## Birdbler
+## Birbler
+Currently: sagemic_stream.py (runs on remote server, with instruction steps for pi below)
 Device streams its audio to a local server where inference runs there. 
 
 Installation (on Pi):
@@ -116,3 +121,4 @@ Note, birdnetlib expects 48kHz input.
 
 References:
 rtsp streaming: https://github.com/tphakala/birdnet-go/discussions/224#discussioncomment-9837887
+downgrading python version on Trixie for tensorflow compatibility: https://github.com/open-webui/open-webui/discussions/17994
