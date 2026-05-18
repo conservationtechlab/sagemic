@@ -40,7 +40,7 @@ Change the save path to either a mounted drive (if running on a local network) o
 Inference runs on board the remote device (raspberry pi).
 
 
-## Birdbler
+## Birbler
 Currently: sagemic_stream.py (runs on remote server, with instruction steps for pi below)
 Device streams its audio to a local server where inference runs there. 
 
