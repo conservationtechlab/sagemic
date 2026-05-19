@@ -96,7 +96,7 @@ def main():
     print("Available audio devices:")
     for i, dev in enumerate(devices):
         print(f"  {i}: {dev['name']}")
-    default_device = sd.query_devices(sd.default.device)['index']
+    default_device = sd.query_devices(sd.default.device[0])['index']
     sound_device = input("Use default sound device? (y/n): ").lower()
     if sound_device == 'y':
         sound_device = default_device
