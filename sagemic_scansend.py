@@ -12,7 +12,7 @@ BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
 LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
-BROKER = "132.249.238.9" 
+BROKER = "132.249.238.9"
 TOPIC = "test/demo"
 MESSAGE = "Hello from Sagemic!"
 PATH_TO_CA_PEM = "/path"  # ADD HERE!
@@ -26,7 +26,7 @@ def get_log_file():
     """Reads the log file (sent filepaths) and puts in a set """
     if not os.path.exists(LOG_FILE):
         return set()  # nothing sent
-    with open(LOG_FILE, "r", encoding='utf-8') as f:  # open log file in read only
+    with open(LOG_FILE, "r", encoding='utf-8') as f:
         return set(line.strip() for line in f)  # return sent file paths as set
 
 
@@ -86,7 +86,7 @@ def main():
                 result.wait_for_publish()
 
                 write_log_file(filepath)
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to send {filepath}: {e}")
 
     client.loop_stop()
