@@ -8,13 +8,13 @@ import ssl
 
 
 PORT = 8883
-BROKER = "<ip or domain of broker>" # must match the SAN/IP of the server certificate
+BROKER ="132.249.238.9" # must match the SAN/IP of the server certificate
 TOPIC = "test/demo"
 MESSAGE = "Hello from Sagemic!"
-PATH_TO_CA_PEM = "</path/to/root_ca.pem>"
-SESSION_ID = "sagemic-test-pub"
-USER = "sagemic-test-pub"
-PASS = "<unique password>"
+PATH_TO_CA_PEM = "/home/ellinaho/sagemic/feature_tests/rootCA.pem"
+SESSION_ID = "test_publisher"
+USER = "test_pub"
+PASS = "sagemic_pub"
 
 client = mqtt.Client(client_id=SESSION_ID)
 
