@@ -13,7 +13,7 @@ LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
 BROKER = "<ip here>" # ADD HERE!
-TOPIC = "test/demo"
+TOPIC = "test/scansend"
 PATH_TO_CA_PEM = "/path"  # ADD HERE!
 SESSION_ID = "client id"  # ADD HERE!
 USER = "user"  # ADD HERE!
@@ -22,10 +22,10 @@ PASS = "pass"  # ADD HERE!
 
 # function to get log file of sent files
 def get_log_file():
-    """Reads the log file (sent filepaths) and puts in a set 
-       
+    """Reads the log file (sent filepaths) and puts in a set
+
     Returns: a set of filepaths currently in the log file
- 
+
     """
     if not os.path.exists(LOG_FILE):
         return set()  # nothing sent
@@ -88,10 +88,17 @@ def main():
     # send new clips to broker over mqtt
     for filepath in files_to_send:
         # add print statements here if needed later
+
+        # get .wav filename from filepath
++       filename = os.path.basename(filepath)
++
++       # make dynamic topic
++       dynamic_topic = f"{TOPIC}/{filename}"
+
         try:
             with open(filepath, "rb") as wav_file:  # open in raw binary mode
                 wav_data = wav_file.read()
-                result = client.publish(TOPIC, bytearray(wav_data), qos=1)
+                result = client.publish(dynamic_topic, bytearray(wav_data), qos=1)
                 result.wait_for_publish()
 
                 write_log_file(filepath)
