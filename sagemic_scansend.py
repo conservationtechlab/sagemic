@@ -12,9 +12,8 @@ BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
 LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
-BROKER = "132.249.238.9"
+BROKER = "<ip here>" # ADD HERE!
 TOPIC = "test/demo"
-MESSAGE = "Hello from Sagemic!"
 PATH_TO_CA_PEM = "/path"  # ADD HERE!
 SESSION_ID = "client id"  # ADD HERE!
 USER = "user"  # ADD HERE!
@@ -23,7 +22,11 @@ PASS = "pass"  # ADD HERE!
 
 # function to get log file of sent files
 def get_log_file():
-    """Reads the log file (sent filepaths) and puts in a set """
+    """Reads the log file (sent filepaths) and puts in a set 
+       
+    Returns: a set of filepaths currently in the log file
+ 
+    """
     if not os.path.exists(LOG_FILE):
         return set()  # nothing sent
     with open(LOG_FILE, "r", encoding='utf-8') as f:
@@ -32,7 +35,13 @@ def get_log_file():
 
 # function to write sent filepaths to log file
 def write_log_file(filepath):
-    """Logs a successfully sent file with its filepath"""
+    """Logs a successfully sent file with its filepath
+
+    Args:
+        filepath (str): Path to the .wav file written by sagemic_local
+        - also means the file has been sent by this script
+    """
+
     with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
 
