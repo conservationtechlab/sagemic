@@ -91,10 +91,10 @@ def main():
         # add print statements here if needed later
 
         # get .wav filename from filepath
-+       filename = os.path.basename(filepath)
-+
-+       # make dynamic topic
-+       dynamic_topic = f"{TOPIC}/{filename}"
+        filename = os.path.basename(filepath)
+
+        # make dynamic topic
+        dynamic_topic = f"{TOPIC}/{filename}"
 
         try:
             with open(filepath, "rb") as wav_file:  # open in raw binary mode
