@@ -5,6 +5,7 @@ Service to check new BirdNet Detection Files and send them via MQTTS
 # libraries
 import os
 import ssl
+import time # for sending delays
 import paho.mqtt.client as mqtt
 
 BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
@@ -102,6 +103,8 @@ def main():
                 result.wait_for_publish()
 
                 write_log_file(filepath)
+                time.sleep(0.5) # to prevent network flood
+
         except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to send {filepath}: {e}")
 
