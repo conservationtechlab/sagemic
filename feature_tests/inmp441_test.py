@@ -15,7 +15,7 @@ from scipy.io.wavfile import write
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
-BASE_PATH = "/path"
+BASE_PATH = "/home/ellinaho/test_files"
 SAMPLERATE = 48000 # inmp441 & birdnet specific
 
 BLOCK_DURATION = 3
@@ -45,12 +45,14 @@ def main():
     recording = sd.rec(
         frames=int(BLOCK_DURATION * SAMPLERATE),
         samplerate = SAMPLERATE,
-        channels=1,
+        channels=2,
         dtype='int32' # all inmp441 specific
     )
 
     sd.wait()
     print("Recording done! Stop streaming...")
+
+    recording_mono = recording[:,0]
 
     print(f"Saving to {final_filename}...")
     write(temp_filename, SAMPLERATE, recording)
