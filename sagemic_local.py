@@ -17,8 +17,7 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path
-
+from sagemic.helpers import check_path, get_device_id
 
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
@@ -107,16 +106,14 @@ def audio_callback(indata, frames, time_obj, status):
 def main():
     """Open the audio input stream and run continuous BirdNET analysis.
 
-    Lists available audio devices, opens a mono input stream at the configured
+    Uses available audio device, opens a mono input stream at the configured
     sample rate and block size, and keeps the main thread alive while the
     `audio_callback` performs analysis on each block. Press Ctrl+C to stop.
     """
-    devices = sd.query_devices()
-    print("Available audio devices:")
-    for i, dev in enumerate(devices):
-        print(f"  {i}: {dev['name']}")
+    print("Scanning for audiomoth or INMP441")
 
-    sd.default.device = 12
+    sd.default.device = get_device_id()
+
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
@@ -126,7 +123,8 @@ def main():
             callback=audio_callback,
             samplerate=SAMPLERATE,
             channels=1,
-            blocksize=BLOCKSIZE
+            blocksize=BLOCKSIZE,
+            dtype='int32' # for inmp441
         ):
             while True:
                 time.sleep(1)

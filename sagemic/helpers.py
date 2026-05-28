@@ -1,7 +1,7 @@
 """Tools needed by both Birbler and SageMic.
 """
 import os
-
+import sounddevice as sd
 
 def check_path(date, base_path):
     """Create new folder for date to store detections.
@@ -19,3 +19,24 @@ def check_path(date, base_path):
         print(f"Directory created: {os.path.abspath(new_path)}")
 
     return new_path
+
+def get_device_id():
+    """Checks which hardware is there before running
+
+        Returns:
+            returns the device id of either audiomoth or inmp441
+    """
+
+    devices = sd.query_devices()
+
+    for i, dev in enumerate(devices):
+        if 'audiomoth' in dev['name'].lower():
+            print(f"Using Audiomoth")
+            return i
+
+    for i, dev in enumerate(devices):
+        if "googlevoicehat" in dev['name'].lower():
+            print(f"Using INMP441")
+            return i
+    print(f"Neither audiomoth nor INMP441 found. Using sysdefault (2)")
+    return 2
