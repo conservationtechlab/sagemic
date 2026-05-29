@@ -19,6 +19,8 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
+from sagemic.helpers import check_path
+
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
 SAMPLERATE = 48000
@@ -68,6 +70,8 @@ def audio_callback(indata, frames, time_obj, status):
         print(status)
 
     timestamp = datetime.now(LOCAL_TZ)
+    date = timestamp.strftime('%Y-%m-%d')
+    path = check_path(date, BASE_PATH)
 
     # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
@@ -94,7 +98,7 @@ def audio_callback(indata, frames, time_obj, status):
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
 
                 # added to track complete files
-                final_filename = f"{BASE_PATH}/{date_time}_{name}_{confidence:.2f}.wav"
+                final_filename = f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
                 temp_filename = final_filename + ".tmp"
                 write(temp_filename, 48000, indata)
                 os.rename(
@@ -116,7 +120,7 @@ def main():
     for i, dev in enumerate(devices):
         print(f"  {i}: {dev['name']}")
 
-    sd.default.device = 1
+    sd.default.device = 2
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")

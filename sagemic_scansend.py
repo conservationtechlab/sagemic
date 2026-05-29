@@ -6,6 +6,7 @@ Service to check new BirdNet Detection Files and send them via MQTTS
 import os
 import ssl
 import time # for sending delays
+import bisect
 import paho.mqtt.client as mqtt
 
 BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
@@ -13,26 +14,12 @@ BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
 LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
-BROKER = "<ip here>" # ADD HERE!
+BROKER = "" # ADD HERE!
 TOPIC = "test/scansend"
 PATH_TO_CA_PEM = "/path"  # ADD HERE!
-SESSION_ID = "client id"  # ADD HERE!
-USER = "user"  # ADD HERE!
-PASS = "pass"  # ADD HERE!
-
-
-# function to get log file of sent files
-def get_log_file():
-    """Reads the log file (sent filepaths) and puts in a set
-
-    Returns: a set of filepaths currently in the log file
-
-    """
-    if not os.path.exists(LOG_FILE):
-        return set()  # nothing sent
-    with open(LOG_FILE, "r", encoding='utf-8') as f:
-        return set(line.strip() for line in f)  # return sent file paths as set
-
+SESSION_ID = ""  # ADD HERE!
+USER = ""  # ADD HERE!
+PASS = ""  # ADD HERE!
 
 # function to write sent filepaths to log file
 def write_log_file(filepath):
@@ -46,22 +33,62 @@ def write_log_file(filepath):
     with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
 
+def search_unsent():
+    """ Searches parent directory and date folders for unsent files
+
+    Returns:
+        Returns an array of filepaths of unsent files
+    """
+    sent_files = set()
+    files_to_send = []
+    start_folder = ""
+
+    # Read the log file to get entire set and latest date read
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            if lines:
+                sent_files = set(line.strip() for line in lines)
+                last_line = lines[-1].strip()
+                start_folder = os.path.basename(os.path.dirname(last_line))
+
+    # filter out folders only in basepath
+    try:
+        folders = []
+        for f in os.listdir(BASE_PATH):
+            # check if item is a folder, but can be eliminated late for efficiency
+            folder_path = os.path.join(BASE_PATH,f)
+            if os.path.isdir(folder_path):
+                folders.append(f)
+        all_folders = sorted(folders) # sorted for for loop later
+    except FileNotFoundError:
+        all_folders = []
+
+    # trim all_folders to start at start_folder
+    if not start_folder:
+        search_folders = all_folders
+    else:
+        # Using this instead of for loop and compare O(N) so its O(logN)
+        index = bisect.bisect_left(all_folders, start_folder)
+        search_folders = all_folders[index:]
+
+    # search in relevant folders
+    for folder in search_folders:
+        folder_path = os.path.join(BASE_PATH, folder)
+        for file in os.listdir(folder_path):
+            if file.endswith(".wav"):
+                filepath = os.path.join(folder_path, file)
+                if filepath not in sent_files:
+                    files_to_send.append(filepath)
+
+    files_to_send.sort() # so we send chronologically
+
+    return files_to_send
 
 # script only runs every few minutes (loop)
 def main():
     """Main execution loop for scanning unsent files and sending them"""
-    sent_files = get_log_file()
-    files_to_send = []
-
-    # check for newly stored clips in sagemic_local folder
-    for root, _, files in os.walk(
-        BASE_PATH
-    ):  # go through each wav to see what hasn't been sent
-        for file in files:
-            if file.endswith(".wav"):
-                filepath = os.path.join(root, file)
-                if filepath not in sent_files:  # haven't sent this!
-                    files_to_send.append(filepath)
+    files_to_send = search_unsent()
 
     if not files_to_send:
         print("No new clips we need to send")
