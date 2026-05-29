@@ -15,7 +15,7 @@ from scipy.io.wavfile import write
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
-BASE_PATH = "/home/ellinaho/test_files"
+BASE_PATH = "/path"
 SAMPLERATE = 48000 # inmp441 & birdnet specific
 
 BLOCK_DURATION = 3
