@@ -126,6 +126,14 @@ downgrading python version on Trixie for tensorflow compatibility: https://githu
 ## INMP441 Setup
 No extra installation needed. Only need to add to config.txt
 
+Pin configurations (INMP441 - 40 pin Pi)
+SCK - Pin 12 (GPIO 18 PCM Clock)
+SD - Pin 38 (GPIO 20, PCM In)
+WS - Pin 35 (GPIO 19, PCM FS)
+L/R - GND (For left channel)
+VDD - 3.3V
+GND - gnd
+
 Add the following to your `/boot/firmware/config.txt`
 ```
 dtparam=i2s=on
