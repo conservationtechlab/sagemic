@@ -42,6 +42,7 @@ def search_unsent():
     sent_files = set()
     files_to_send = []
     start_folder = ""
+    start_file = ""
 
     # Read the log file to get entire set and latest date read
     if os.path.exists(LOG_FILE):
@@ -51,6 +52,7 @@ def search_unsent():
                 sent_files = set(line.strip() for line in lines)
                 last_line = lines[-1].strip()
                 start_folder = os.path.basename(os.path.dirname(last_line))
+                start_file = os.path.basename(last_line)
 
     # filter out folders only in basepath
     try:
@@ -75,11 +77,22 @@ def search_unsent():
     # search in relevant folders
     for folder in search_folders:
         folder_path = os.path.join(BASE_PATH, folder)
+        wavs = []
+
         for file in os.listdir(folder_path):
             if file.endswith(".wav"):
-                filepath = os.path.join(folder_path, file)
-                if filepath not in sent_files:
-                    files_to_send.append(filepath)
+                wavs.append(file)
+        wav_files = sorted(wavs)
+
+        if folder == start_folder and start_file:
+            index = bisect.bisect_right(wav_files, start_file)
+            wav_files = wav_files[index:]
+
+        for file in wav_files:
+            filepath = os.path.join(folder_path, file)
+
+            if filepath not in sent_files:
+                files_to_send.append(filepath)
 
     files_to_send.sort() # so we send chronologically
 
