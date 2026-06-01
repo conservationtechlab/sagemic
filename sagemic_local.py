@@ -98,7 +98,9 @@ def audio_callback(indata, frames, time_obj, status):
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
 
                 # added to track complete files
-                final_filename = f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                final_filename = (
+                    f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                )
                 temp_filename = final_filename + ".tmp"
                 write(temp_filename, 48000, indata)
                 os.rename(

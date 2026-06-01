@@ -5,7 +5,7 @@ Service to check new BirdNet Detection Files and send them via MQTTS
 # libraries
 import os
 import ssl
-import time # for sending delays
+import time  # for sending delays
 import bisect
 import paho.mqtt.client as mqtt
 
@@ -14,12 +14,13 @@ BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
 LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
-BROKER = "" # ADD HERE!
+BROKER = ""  # ADD HERE!
 TOPIC = "test/scansend"
 PATH_TO_CA_PEM = "/path"  # ADD HERE!
 SESSION_ID = ""  # ADD HERE!
 USER = ""  # ADD HERE!
 PASS = ""  # ADD HERE!
+
 
 # function to write sent filepaths to log file
 def write_log_file(filepath):
@@ -32,6 +33,7 @@ def write_log_file(filepath):
 
     with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
+
 
 def search_unsent():
     """ Searches parent directory and date folders for unsent files
@@ -58,11 +60,12 @@ def search_unsent():
     try:
         folders = []
         for f in os.listdir(BASE_PATH):
-            # check if item is a folder, but can be eliminated late for efficiency
-            folder_path = os.path.join(BASE_PATH,f)
+            # check if item is a folder
+            # can be eliminated late for efficiency
+            folder_path = os.path.join(BASE_PATH, f)
             if os.path.isdir(folder_path):
                 folders.append(f)
-        all_folders = sorted(folders) # sorted for for loop later
+        all_folders = sorted(folders)  # sorted for for loop later
     except FileNotFoundError:
         all_folders = []
 
@@ -94,9 +97,10 @@ def search_unsent():
             if filepath not in sent_files:
                 files_to_send.append(filepath)
 
-    files_to_send.sort() # so we send chronologically
+    files_to_send.sort()  # so we send chronologically
 
     return files_to_send
+
 
 # script only runs every few minutes (loop)
 def main():
@@ -139,11 +143,15 @@ def main():
         try:
             with open(filepath, "rb") as wav_file:  # open in raw binary mode
                 wav_data = wav_file.read()
-                result = client.publish(dynamic_topic, bytearray(wav_data), qos=1)
+                result = client.publish(
+                    dynamic_topic,
+                    bytearray(wav_data),
+                    qos=1
+                )
                 result.wait_for_publish()
 
                 write_log_file(filepath)
-                time.sleep(0.5) # to prevent network flood
+                time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to send {filepath}: {e}")
