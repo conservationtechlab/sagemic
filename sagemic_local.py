@@ -6,6 +6,8 @@ The stream is chunked into 3-second blocks to match BirdNET’s expected
 window size and detections above a confidence threshold are printed.
 
 """
+
+import os  # added for scansend service
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -19,7 +21,6 @@ from birdnetlib.analyzer import Analyzer
 
 from sagemic.helpers import check_path
 
-
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
 SAMPLERATE = 48000
@@ -28,22 +29,19 @@ CONFIDENCE_THRESHOLD = 0.1
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
 # Directory to store detected clips by date.
-BASE_PATH = '/path/to/store/detections'
+BASE_PATH = "/path"  # ADD HERE!
 
 # The BirdNET model expects clips of at least 3 seconds for analysis
 BLOCK_DURATION = 3
 BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
 
-audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
+audio_buffer = np.zeros(BLOCKSIZE, dtype="float32")
 
 analyzer = Analyzer()
 
 recording_buffer = RecordingBuffer(
-    analyzer=analyzer,
-    lat=LATITUDE,
-    lon=LONGITUDE,
-    rate=SAMPLERATE,
-    buffer=audio_buffer
+    analyzer=analyzer, lat=LATITUDE, lon=LONGITUDE,
+    rate=SAMPLERATE, buffer=audio_buffer
 )
 
 
@@ -90,16 +88,24 @@ def audio_callback(indata, frames, time_obj, status):
     if detections:
         print("At least one detection.")
         for detection in detections:
-            if detection['confidence'] > CONFIDENCE_THRESHOLD:
-                name = detection['scientific_name'].replace(" ", "_").lower()
-                confidence = detection['confidence']
-                time = timestamp.strftime('%H-%M-%S')
+            if detection["confidence"] > CONFIDENCE_THRESHOLD:
+                name = detection["scientific_name"].replace(" ", "_").lower()
+                confidence = detection["confidence"]
+
+                # new for filenames w/ data + time
+                date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
-                write(
-                      f"{path}/{time}_{name}_{confidence:.2f}.wav",
-                      48000,
-                      indata
-                     )
+
+                # added to track complete files
+                final_filename = (
+                    f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                )
+                temp_filename = final_filename + ".tmp"
+                write(temp_filename, 48000, indata)
+                os.rename(
+                    temp_filename, final_filename
+                )  # to .wav for scansend when done
     else:
         print("No detections")
 
@@ -116,7 +122,7 @@ def main():
     for i, dev in enumerate(devices):
         print(f"  {i}: {dev['name']}")
 
-    sd.default.device = 12
+    sd.default.device = 2
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
@@ -126,7 +132,7 @@ def main():
             callback=audio_callback,
             samplerate=SAMPLERATE,
             channels=1,
-            blocksize=BLOCKSIZE
+            blocksize=BLOCKSIZE,
         ):
             while True:
                 time.sleep(1)
@@ -134,5 +140,5 @@ def main():
         print("\nReceived keyboard interrupt. Quitting.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

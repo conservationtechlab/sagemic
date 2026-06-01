@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SageMic Scan & Send every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min 
+Unit=sagemic_scansend.service
+
+[Install]
+WantedBy=timers.target

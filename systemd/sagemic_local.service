@@ -1,0 +1,16 @@
+[Unit]
+Description=SageMic Local Audio Listener
+After=network.target sound.target
+
+[Service] 
+Type=simple
+User= # ADD HERE!
+
+ExecStart= # ADD HERE!
+WorkingDirectory= # ADD HERE!
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

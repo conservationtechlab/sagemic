@@ -1,0 +1,164 @@
+"""
+Service to check new BirdNet Detection Files and send them via MQTTS
+"""
+
+# libraries
+import os
+import ssl
+import time  # for sending delays
+import bisect
+import paho.mqtt.client as mqtt
+
+BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
+# log file to track clips that have alr been sent (tracker)
+LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
+
+PORT = 8883
+BROKER = ""  # ADD HERE!
+TOPIC = "test/scansend"
+PATH_TO_CA_PEM = "/path"  # ADD HERE!
+SESSION_ID = ""  # ADD HERE!
+USER = ""  # ADD HERE!
+PASS = ""  # ADD HERE!
+
+
+# function to write sent filepaths to log file
+def write_log_file(filepath):
+    """Logs a successfully sent file with its filepath
+
+    Args:
+        filepath (str): Path to the .wav file written by sagemic_local
+        - also means the file has been sent by this script
+    """
+
+    with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
+        f.write(f"{filepath}\n")
+
+
+def search_unsent():
+    """ Searches parent directory and date folders for unsent files
+
+    Returns:
+        Returns an array of filepaths of unsent files
+    """
+    sent_files = set()
+    files_to_send = []
+    start_folder = ""
+    start_file = ""
+
+    # Read the log file to get entire set and latest date read
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            if lines:
+                sent_files = set(line.strip() for line in lines)
+                last_line = lines[-1].strip()
+                start_folder = os.path.basename(os.path.dirname(last_line))
+                start_file = os.path.basename(last_line)
+
+    # filter out folders only in basepath
+    try:
+        folders = []
+        for f in os.listdir(BASE_PATH):
+            # check if item is a folder
+            # can be eliminated late for efficiency
+            folder_path = os.path.join(BASE_PATH, f)
+            if os.path.isdir(folder_path):
+                folders.append(f)
+        all_folders = sorted(folders)  # sorted for for loop later
+    except FileNotFoundError:
+        all_folders = []
+
+    # trim all_folders to start at start_folder
+    if not start_folder:
+        search_folders = all_folders
+    else:
+        # Using this instead of for loop and compare O(N) so its O(logN)
+        index = bisect.bisect_left(all_folders, start_folder)
+        search_folders = all_folders[index:]
+
+    # search in relevant folders
+    for folder in search_folders:
+        folder_path = os.path.join(BASE_PATH, folder)
+        wavs = []
+
+        for file in os.listdir(folder_path):
+            if file.endswith(".wav"):
+                wavs.append(file)
+        wav_files = sorted(wavs)
+
+        if folder == start_folder and start_file:
+            index = bisect.bisect_right(wav_files, start_file)
+            wav_files = wav_files[index:]
+
+        for file in wav_files:
+            filepath = os.path.join(folder_path, file)
+
+            if filepath not in sent_files:
+                files_to_send.append(filepath)
+
+    files_to_send.sort()  # so we send chronologically
+
+    return files_to_send
+
+
+# script only runs every few minutes (loop)
+def main():
+    """Main execution loop for scanning unsent files and sending them"""
+    files_to_send = search_unsent()
+
+    if not files_to_send:
+        print("No new clips we need to send")
+        return
+
+    # ensure only sending completed clip, (done in sagemic_local.py)
+
+    client = mqtt.Client(client_id=SESSION_ID)
+
+    client.username_pw_set(USER, PASS)
+
+    # use certificate.pem to authenticate msg with port 8883
+    client.tls_set(
+        ca_certs=PATH_TO_CA_PEM,
+        certfile=None,
+        keyfile=None,
+        cert_reqs=ssl.CERT_REQUIRED,
+        tls_version=ssl.PROTOCOL_TLS,
+    )
+
+    client.connect(BROKER, PORT)
+
+    client.loop_start()
+
+    # send new clips to broker over mqtt
+    for filepath in files_to_send:
+        # add print statements here if needed later
+
+        # get .wav filename from filepath
+        filename = os.path.basename(filepath)
+
+        # make dynamic topic
+        dynamic_topic = f"{TOPIC}/{filename}"
+
+        try:
+            with open(filepath, "rb") as wav_file:  # open in raw binary mode
+                wav_data = wav_file.read()
+                result = client.publish(
+                    dynamic_topic,
+                    bytearray(wav_data),
+                    qos=1
+                )
+                result.wait_for_publish()
+
+                write_log_file(filepath)
+                time.sleep(0.5)  # to prevent network flood
+
+        except Exception as e:  # pylint: disable=broad-except
+            print(f"Failed to send {filepath}: {e}")
+
+    client.loop_stop()
+    client.disconnect()
+
+
+if __name__ == "__main__":
+    main()
