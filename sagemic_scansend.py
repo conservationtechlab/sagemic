@@ -9,17 +9,22 @@ import time  # for sending delays
 import bisect
 import paho.mqtt.client as mqtt
 
-BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
+from sagemic.helpers import get_config
+
+config = get_config()
+
+BASE_PATH = config["PATHS"]["BASE_PATH"]
+
 # log file to track clips that have alr been sent (tracker)
 LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
-BROKER = ""  # ADD HERE!
+BROKER = config["MQTT"]["BROKER"]
 TOPIC = "test/scansend"
-PATH_TO_CA_PEM = "/path"  # ADD HERE!
-SESSION_ID = ""  # ADD HERE!
-USER = ""  # ADD HERE!
-PASS = ""  # ADD HERE!
+PATH_TO_CA_PEM = config["PATHS"]["PATH_TO_CA_PEM"]
+SESSION_ID = config["MQTT"]["SESSION_ID"]
+USER = config["MQTT"]["USER"]
+PASS = config["MQTT"]["PASS"]
 
 
 # function to write sent filepaths to log file

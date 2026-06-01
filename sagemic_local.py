@@ -19,7 +19,7 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path
+from sagemic.helpers import check_path, get_config
 
 LATITUDE = 32.7157
 LONGITUDE = -117.1611
@@ -28,8 +28,10 @@ CONFIDENCE_THRESHOLD = 0.1
 
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")
 
+config = get_config()
+
 # Directory to store detected clips by date.
-BASE_PATH = "/path"  # ADD HERE!
+BASE_PATH = config["PATHS"]["BASE_PATH"]
 
 # The BirdNET model expects clips of at least 3 seconds for analysis
 BLOCK_DURATION = 3
