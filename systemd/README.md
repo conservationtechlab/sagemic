@@ -40,3 +40,31 @@ or
 Invalid number of channels
 ```
 You can fix this by stopping or disabling services like in step 3 or 6.
+
+
+## LTE Setup
+If using the Sixfab LTE hat, you will need to use the lte setup systemd service
+file so that it configures the connection properly on each reboot. 
+
+Prior to that, you will need to conduct a 1 time setup step to configure
+the proper APN in the modem hardware.
+
+If using the recommended EIoT Club SIM within the US, the APN will be "america.bics"
+ 
+
+```
+cd ~/sagemic/systemd
+sudo cp lte-up.sh /usr/local/bin/lte-up.sh
+chmod +x /usr/local/bin/lte-up.sh
+sudo apt install modemmanager
+AT command to set apn and check
+```
+
+```
+cd ~/sagemic/systemd
+sudo cp lte-setup.service /etc/systemd/system/lte-setup.service
+sudo systemctl daemon-reload
+sudo systemctl enable lte-setup.service
+sudo systemctl start lte-setup.service
+reboot
+```
