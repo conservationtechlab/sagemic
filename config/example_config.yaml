@@ -1,0 +1,14 @@
+# --- example config file --- 
+# copy this file, rename to 'config.yaml'
+# update this file with your actual paths/info
+# make sure to add the your config.yaml to gitignore!
+
+PATHS:
+  BASE_PATH: "/path/to/directoryForSagemicFiles"
+  PATH_TO_CA_PEM: "/path/to/certificate"
+
+MQTT:
+  BROKER: "<ip>"
+  SESSION_ID: "client_id"
+  USER: "username"
+  PASS: "password"
