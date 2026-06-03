@@ -20,7 +20,7 @@ LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
 
 PORT = 8883
 BROKER = config["MQTT"]["BROKER"]
-TOPIC = "test/scansend"
+TOPIC = "test/scansend/" + config["MQTT"]["DEVICE"]
 PATH_TO_CA_PEM = config["PATHS"]["PATH_TO_CA_PEM"]
 SESSION_ID = config["MQTT"]["SESSION_ID"]
 USER = config["MQTT"]["USER"]

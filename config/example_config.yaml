@@ -8,6 +8,7 @@ PATHS:
   PATH_TO_CA_PEM: "/path/to/certificate"
 
 MQTT:
+  DEVICE: "device_name"
   BROKER: "<ip>"
   SESSION_ID: "client_id"
   USER: "username"
