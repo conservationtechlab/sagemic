@@ -7,7 +7,7 @@ dependencies = [
     "sounddevice",
     "scipy",
     "librosa",
-    "tensorflow"
+    "tflite-runtime>=2.14.0"
 ]
 
 [tool.setuptools]
