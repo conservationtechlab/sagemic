@@ -51,20 +51,73 @@ the proper APN in the modem hardware.
 
 If using the recommended EIoT Club SIM within the US, the APN will be "america.bics"
  
-
+Move the shell script and move the systemd service file.
 ```
 cd ~/sagemic/systemd
 sudo cp lte-up.sh /usr/local/bin/lte-up.sh
 chmod +x /usr/local/bin/lte-up.sh
-sudo apt install modemmanager
-AT command to set apn and check
+sudo cp lte-up.service /etc/system/systemd
 ```
 
+Install modem packages and set up the APN manually in the modem, only needs to be done once.
 ```
-cd ~/sagemic/systemd
-sudo cp lte-setup.service /etc/systemd/system/lte-setup.service
+sudo apt install modemmanager libqmi-utils minicom
+nmcli -L
+```
+You are looking for the number after ../Modem/#. That # is the modem ID we will use later. 
+It will probably be 0. But we should check for it because there's a chance it is 1, 2...
+
+```
+nmcli -m <id>
+```
+You should see a few /dev/ttyUSB# listed. Look for one that says (at). There may be multiple. Pick one for now.
+
+
+Replace that number in the command below where the # is. 
+```
+sudo minicom -D /dev/ttyUSB#
+```
+
+You will now be in an AT interface, interfacing directly with the modem. Commands look a little different.
+
+
+To see if you chose the correct USB# port, try the following command.
+```
+AT
+```
+
+If you see an 'OK' continue. If not, exit this and try the other USB# that said (at).
+
+```
+AT+CGDCONT=1,"IP","america.bics"
+```
+
+Verify the APN took with:
+```
+AT+CGDCONT?
+```
+
+You should see the APN we just set.
+
+To exit minicom: Ctrl + A, X
+
+```
+reboot
+```
+
+Now that your modem knows the correct APN, you can enable the lte-setup service
+and reboot one more time.
+
+```
 sudo systemctl daemon-reload
 sudo systemctl enable lte-setup.service
 sudo systemctl start lte-setup.service
 reboot
+```
+
+When you are once again inside the pi, you should be able to ping google using
+the wwan0 (LTE) connection. If this pings correctly, congrats, you set up LTE.
+
+```
+sudo ping -I wwan0 google.com
 ```
