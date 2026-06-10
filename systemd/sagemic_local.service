@@ -6,8 +6,8 @@ After=network.target sound.target
 Type=simple
 User= # ADD HERE!
 
-ExecStart= # ADD HERE!
-WorkingDirectory= # ADD HERE!
+ExecStart= # /path/to/venv/bin/python /path/to/sagemic_local.py --config /path/to/config.yaml
+WorkingDirectory= # /path/to/repo
 
 Restart=always
 RestartSec=10

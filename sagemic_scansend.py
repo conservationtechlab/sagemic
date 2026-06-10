@@ -1,9 +1,10 @@
 """
-Service to check new BirdNet Detection Files and send them via MQTTS
+Service to check new BirdNet Detection Files and send them via MQTTS.
 """
 
 # libraries
 import os
+import argparse
 import ssl
 import time  # for sending delays
 import bisect
@@ -11,40 +12,33 @@ import paho.mqtt.client as mqtt
 
 from sagemic.helpers import get_config
 
-config = get_config()
-
-BASE_PATH = config["PATHS"]["BASE_PATH"]
-
-# log file to track clips that have alr been sent (tracker)
-LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
-
-PORT = 8883
-BROKER = config["MQTT"]["BROKER"]
-TOPIC = "test/scansend/" + config["MQTT"]["DEVICE"]
-PATH_TO_CA_PEM = config["PATHS"]["PATH_TO_CA_PEM"]
-SESSION_ID = config["MQTT"]["SESSION_ID"]
-USER = config["MQTT"]["USER"]
-PASS = config["MQTT"]["PASS"]
-
 
 # function to write sent filepaths to log file
-def write_log_file(filepath):
-    """Logs a successfully sent file with its filepath
+def write_log_file(filepath, LOG_FILE):
+    """Logs a successfully sent file with its filepath.
 
     Args:
-        filepath (str): Path to the .wav file written by sagemic_local
-        - also means the file has been sent by this script
+        filepath (str): Path to the .wav file written by sagemic_local.
+        - Also means the file has been sent by this script.
+
+        LOG_FILE (str): Path to the log file, defined in the config file.
     """
 
     with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
 
 
-def search_unsent():
-    """ Searches parent directory and date folders for unsent files
+def search_unsent(BASE_PATH, LOG_FILE):
+    """ Searches parent directory and date folders for unsent files.
+
+    Args:
+        BASE_PATH (str): Path to the base directory to audio files.
+        - Defined in config.
+
+        LOG_FILE (str): Path to the log file, defined in the config file.
 
     Returns:
-        Returns an array of filepaths of unsent files
+        dict: Returns an dictionary of filepaths of unsent files.
     """
     sent_files = set()
     files_to_send = []
@@ -109,8 +103,33 @@ def search_unsent():
 
 # script only runs every few minutes (loop)
 def main():
-    """Main execution loop for scanning unsent files and sending them"""
-    files_to_send = search_unsent()
+    """
+    Parses config filepath argument and initalizes variables.
+
+    Main execution loop for scanning unsent files and sending them.
+    """
+
+    # parse given config filepath
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, help="Path to config file")
+    args = parser.parse_args()
+
+    config = get_config(args.config)
+
+    BASE_PATH = config["PATHS"]["BASE_PATH"]
+
+    # log file to track clips that have alr been sent (tracker)
+    LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
+
+    PORT = config["MQTT"]["PORT"]
+    BROKER = config["MQTT"]["BROKER"]
+    TOPIC = "test/scansend/" + config["MQTT"]["DEVICE"]
+    PATH_TO_CA_PEM = config["PATHS"]["PATH_TO_CA_PEM"]
+    SESSION_ID = config["MQTT"]["SESSION_ID"]
+    USER = config["MQTT"]["USER"]
+    PASS = config["MQTT"]["PASS"]
+
+    files_to_send = search_unsent(BASE_PATH, LOG_FILE)
 
     if not files_to_send:
         print("No new clips we need to send")
@@ -155,7 +174,7 @@ def main():
                 )
                 result.wait_for_publish()
 
-                write_log_file(filepath)
+                write_log_file(filepath, LOG_FILE)
                 time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except

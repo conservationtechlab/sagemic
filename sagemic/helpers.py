@@ -22,14 +22,14 @@ def check_path(date, base_path):
     return new_path
 
 
-def get_config(config_file="config/config.yaml"):
-    """Reads config file, return as python dict
+def get_config(config_file):
+    """Reads config file, return as python dict.
 
     Args:
-        config file filepath
+        config_file(str): Filepath of the config file.
 
     Returns:
-        Python dictionary of filepath & MQTT personal info
+        dict: Dictionary of filepaths & custom MQTT info.
     """
 
     # check if file exists first

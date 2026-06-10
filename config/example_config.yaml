@@ -7,7 +7,20 @@ PATHS:
   BASE_PATH: "/path/to/directoryForSagemicFiles"
   PATH_TO_CA_PEM: "/path/to/certificate"
 
+SETTINGS:
+  # Change  if outside of San Diego
+  LATITUDE: 32.7157
+  LONGITUDE: -117.1611
+  LOCAL_TZ: "America/Los_Angeles"
+
+  # Default for audio device
+  SAMPLERATE: 48000
+  CONFIDENCE_THRESHOLD: 0.1
+  BLOCK_DURATION: 3
+
 MQTT:
+  # Default Port for MQTTS
+  PORT: 8883
   DEVICE: "device_name"
   BROKER: "<ip>"
   SESSION_ID: "client_id"
