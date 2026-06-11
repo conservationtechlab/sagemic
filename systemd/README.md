@@ -121,3 +121,7 @@ the wwan0 (LTE) connection. If this pings correctly, congrats, you set up LTE.
 ```
 sudo ping -I wwan0 google.com
 ```
+
+*If configuring LTE while sshed in, you will need to re-ssh in after reboots, if this is annoying, use
+a monitor/keyboard if you have a desktop OS.
+**mmcli -L may not see board initially if modemmanager was installed after modem was plugged in. If this happens, reboot while modem is plugged in and try mmcli -L again.
