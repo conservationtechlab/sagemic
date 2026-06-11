@@ -110,8 +110,8 @@ and reboot one more time.
 
 ```
 sudo systemctl daemon-reload
-sudo systemctl enable lte-setup.service
-sudo systemctl start lte-setup.service
+sudo systemctl enable lte-up.service
+sudo systemctl start lte-up.service
 reboot
 ```
 
