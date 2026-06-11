@@ -62,13 +62,13 @@ sudo cp lte-up.service /etc/systemd/system
 Install modem packages and set up the APN manually in the modem, only needs to be done once.
 ```
 sudo apt install modemmanager libqmi-utils minicom
-nmcli -L
+mmcli -L
 ```
 You are looking for the number after ../Modem/#. That # is the modem ID we will use later. 
 It will probably be 0. But we should check for it because there's a chance it is 1, 2...
 
 ```
-nmcli -m <id>
+mmcli -m <id>
 ```
 You should see a few /dev/ttyUSB# listed. Look for one that says (at). There may be multiple. Pick one for now.
 
