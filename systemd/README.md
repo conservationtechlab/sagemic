@@ -56,7 +56,7 @@ Move the shell script and move the systemd service file.
 cd ~/sagemic/systemd
 sudo cp lte-up.sh /usr/local/bin/lte-up.sh
 chmod +x /usr/local/bin/lte-up.sh
-sudo cp lte-up.service /etc/system/systemd
+sudo cp lte-up.service /etc/systemd/system
 ```
 
 Install modem packages and set up the APN manually in the modem, only needs to be done once.
