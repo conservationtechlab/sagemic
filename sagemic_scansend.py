@@ -7,6 +7,7 @@ import os
 import ssl
 import time  # for sending delays
 import bisect
+import subprocess
 import paho.mqtt.client as mqtt
 
 BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
@@ -22,9 +23,37 @@ USER = ""  # ADD HERE!
 PASS = ""  # ADD HERE!
 
 
+# function to compress .wav file to .mp3 in stdout
+def compress_audio(wav_path):
+    """ Compresses given .wav file into .mp3 format and outputs to stdout.
+
+    Args:
+        filepath (str): Path to the .wav file written by sagemic_local.
+
+    Returns:
+        bytes: Raw stdout binary data of the converted mp3.
+    """
+    command = [
+        'ffmpeg',
+        '-i', wav_path,
+        '-f', 'mp3',
+        '-b:a', '192k',  # no difference to human ear
+        '-'  # output to stdout
+    ]
+
+    process = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
+
+    return process.stdout
+
+
 # function to write sent filepaths to log file
 def write_log_file(filepath):
     """Logs a successfully sent file with its filepath
+
 
     Args:
         filepath (str): Path to the .wav file written by sagemic_local
@@ -138,20 +167,19 @@ def main():
         filename = os.path.basename(filepath)
 
         # make dynamic topic
-        dynamic_topic = f"{TOPIC}/{filename}"
+        mp3_filename = os.path.splitext(filename)[0] + ".mp3"
+        dynamic_topic = f"{TOPIC}/{mp3_filename}"
 
         try:
-            with open(filepath, "rb") as wav_file:  # open in raw binary mode
-                wav_data = wav_file.read()
-                result = client.publish(
-                    dynamic_topic,
-                    bytearray(wav_data),
-                    qos=1
-                )
-                result.wait_for_publish()
-
-                write_log_file(filepath)
-                time.sleep(0.5)  # to prevent network flood
+            mp3_data = compress_audio(filepath)
+            result = client.publish(
+                dynamic_topic,
+                bytearray(mp3_data),
+                qos=1
+            )
+            result.wait_for_publish()
+            write_log_file(filepath)
+            time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except
             print(f"Failed to send {filepath}: {e}")
