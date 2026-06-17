@@ -59,6 +59,7 @@ def audio_callback(
     local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
     base_path = config["PATH"]["BASE_PATH"]
     confidence_threshold = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
+    sample_rate = config["SETTINGS"]["SAMPLERATE"]
 
     timestamp = datetime.now(local_tz)
     date = timestamp.strftime('%Y-%m-%d')
@@ -93,7 +94,7 @@ def audio_callback(
                     f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
                 )
                 temp_filename = final_filename + ".tmp"
-                write(temp_filename, 48000, indata)
+                write(temp_filename, sample_rate, indata)
                 os.rename(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
