@@ -21,6 +21,7 @@ SETTINGS:
 MQTT:
   # Default Port for MQTTS
   PORT: 8883
+  BASE_TOPIC: "topic_name"
   DEVICE: "device_name"
   BROKER: "<ip>"
   SESSION_ID: "client_id"

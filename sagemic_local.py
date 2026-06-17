@@ -12,6 +12,7 @@ import time
 import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from functools import partial  # for config argument in callback
 
 import numpy as np
 import sounddevice as sd
@@ -21,6 +22,83 @@ from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
 from sagemic.helpers import check_path, get_config
+
+
+# callback defined here to use with config variables
+def audio_callback(
+    indata,
+    frames,
+    time_obj,
+    status,
+    recording_buffer,
+    config=None
+):
+    """Process one audio block from the input stream and print detections.
+
+    Called by `sounddevice` for each incoming audio block. Flattens the
+    audio into a 1-D array, updates the global `recording_buffer`, runs
+    BirdNET analysis, and prints detections whose confidence exceeds
+    `CONFIDENCE_THRESHOLD`.
+
+    Args:
+        indata (numpy.ndarray): Audio block with shape (frames, channels).
+            For this script, channels == 1.
+        frames (int): Number of frames in `indata`.
+        time_obj: Stredam timing information provided by `sounddevice`
+            (implementation-specific; not used here).
+        status (sounddevice.CallbackFlags): Callback status flags; printed
+            if any non-OK condition is reported.
+
+    Side Effects:
+        Updates the global `recording_buffer.buffer` and writes detection
+        summaries to stdout.
+    """
+    if status:
+        print(status)
+
+    local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
+    base_path = config["PATH"]["BASE_PATH"]
+    confidence_threshold = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
+
+    timestamp = datetime.now(local_tz)
+    date = timestamp.strftime('%Y-%m-%d')
+    path = check_path(date, base_path)
+
+    # Flatten the data to a 1D array as expected by birdnetlib
+    audio_data = indata.flatten()
+
+    # Add data to the buffer, specifying the samplerate here
+    recording_buffer.buffer = audio_data
+
+    print(f"\nProcessing audio chunk at {timestamp.strftime('%H:%M:%S')}...")
+
+    # Analyze the buffer and get detections
+    recording_buffer.analyze()
+    detections = recording_buffer.detections
+
+    if detections:
+        print("At least one detection.")
+        for detection in detections:
+            if detection["confidence"] > confidence_threshold:
+                name = detection["scientific_name"].replace(" ", "_").lower()
+                confidence = detection["confidence"]
+
+                # new for filenames w/ data + time
+                date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+
+                print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
+
+                # added to track complete files
+                final_filename = (
+                    f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                )
+                temp_filename = final_filename + ".tmp"
+                write(temp_filename, 48000, indata)
+                os.rename(
+                    temp_filename, final_filename
+                )  # to .wav for scansend when done
+    else:
+        print("No detections")
 
 
 def main():
@@ -41,93 +119,28 @@ def main():
     config = get_config(args.config)
 
     # audio variables
-    LATITUDE = config["SETTINGS"]["LATITUDE"]
-    LONGITUDE = config["SETTINGS"]["LONGITUDE"]
-    SAMPLERATE = config["SETTINGS"]["SAMPLERATE"]
-    CONFIDENCE_THRESHOLD = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
-
-    LOCAL_TZ = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
-
-    # Directory to store detected clips by date.
-    BASE_PATH = config["PATHS"]["BASE_PATH"]
+    latitude = config["SETTINGS"]["LATITUDE"]
+    longitude = config["SETTINGS"]["LONGITUDE"]
+    sample_rate = config["SETTINGS"]["SAMPLERATE"]
 
     # The BirdNET model expects clips of at least 3 seconds for analysis
-    BLOCK_DURATION = config["SETTINGS"]["BLOCK_DURATION"]
-    BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
+    block_duration = config["SETTINGS"]["BLOCK_DURATION"]
+    block_size = block_duration * sample_rate
 
-    audio_buffer = np.zeros(BLOCKSIZE, dtype="float32")
+    audio_buffer = np.zeros(block_size, dtype="float32")
 
     analyzer = Analyzer()
 
     recording_buffer = RecordingBuffer(
-        analyzer=analyzer, lat=LATITUDE, lon=LONGITUDE,
-        rate=SAMPLERATE, buffer=audio_buffer
+        analyzer=analyzer, lat=latitude, lon=longitude,
+        rate=sample_rate, buffer=audio_buffer
     )
 
-    # callback defined here to use with config variables
-    def audio_callback(indata, frames, time_obj, status):
-        """Process one audio block from the input stream and print detections.
-
-        Called by `sounddevice` for each incoming audio block. Flattens the
-        audio into a 1-D array, updates the global `recording_buffer`, runs
-        BirdNET analysis, and prints detections whose confidence exceeds
-        `CONFIDENCE_THRESHOLD`.
-
-        Args:
-            indata (numpy.ndarray): Audio block with shape (frames, channels).
-                For this script, channels == 1.
-            frames (int): Number of frames in `indata`.
-            time_obj: Stredam timing information provided by `sounddevice`
-                (implementation-specific; not used here).
-            status (sounddevice.CallbackFlags): Callback status flags; printed
-                if any non-OK condition is reported.
-
-        Side Effects:
-            Updates the global `recording_buffer.buffer` and writes detection
-            summaries to stdout.
-        """
-        if status:
-            print(status)
-
-        timestamp = datetime.now(LOCAL_TZ)
-        date = timestamp.strftime('%Y-%m-%d')
-        path = check_path(date, BASE_PATH)
-
-        # Flatten the data to a 1D array as expected by birdnetlib
-        audio_data = indata.flatten()
-
-        # Add data to the buffer, specifying the samplerate here
-        recording_buffer.buffer = audio_data
-
-        print(f"\nProcessing audio chunk at {timestamp.strftime('%H:%M:%S')}...")
-
-        # Analyze the buffer and get detections
-        recording_buffer.analyze()
-        detections = recording_buffer.detections
-
-        if detections:
-            print("At least one detection.")
-            for detection in detections:
-                if detection["confidence"] > CONFIDENCE_THRESHOLD:
-                    name = detection["scientific_name"].replace(" ", "_").lower()
-                    confidence = detection["confidence"]
-
-                    # new for filenames w/ data + time
-                    date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-
-                    print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
-
-                    # added to track complete files
-                    final_filename = (
-                        f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
-                    )
-                    temp_filename = final_filename + ".tmp"
-                    write(temp_filename, 48000, indata)
-                    os.rename(
-                        temp_filename, final_filename
-                    )  # to .wav for scansend when done
-        else:
-            print("No detections")
+    arg_callback = partial(
+        audio_callback,
+        recording_buffer=recording_buffer,
+        config=config
+    )
 
     # start listener
     devices = sd.query_devices()
@@ -142,10 +155,10 @@ def main():
 
     try:
         with sd.InputStream(
-            callback=audio_callback,
-            samplerate=SAMPLERATE,
+            callback=arg_callback,
+            samplerate=sample_rate,
             channels=1,
-            blocksize=BLOCKSIZE,
+            blocksize=block_size,
         ):
             while True:
                 time.sleep(1)

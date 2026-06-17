@@ -14,28 +14,28 @@ from sagemic.helpers import get_config
 
 
 # function to write sent filepaths to log file
-def write_log_file(filepath, LOG_FILE):
+def write_log_file(filepath, log_file):
     """Logs a successfully sent file with its filepath.
 
     Args:
         filepath (str): Path to the .wav file written by sagemic_local.
         - Also means the file has been sent by this script.
 
-        LOG_FILE (str): Path to the log file, defined in the config file.
+        log_file (str): Path to the log file, defined in the config file.
     """
 
-    with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
+    with open(log_file, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
 
 
-def search_unsent(BASE_PATH, LOG_FILE):
+def search_unsent(base_path, log_file):
     """ Searches parent directory and date folders for unsent files.
 
     Args:
-        BASE_PATH (str): Path to the base directory to audio files.
+        base_path (str): Path to the base directory to audio files.
         - Defined in config.
 
-        LOG_FILE (str): Path to the log file, defined in the config file.
+        log_file (str): Path to the log file, defined in the config file.
 
     Returns:
         dict: Returns an dictionary of filepaths of unsent files.
@@ -46,8 +46,8 @@ def search_unsent(BASE_PATH, LOG_FILE):
     start_file = ""
 
     # Read the log file to get entire set and latest date read
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(log_file):
+        with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
             if lines:
                 sent_files = set(line.strip() for line in lines)
@@ -58,10 +58,10 @@ def search_unsent(BASE_PATH, LOG_FILE):
     # filter out folders only in basepath
     try:
         folders = []
-        for f in os.listdir(BASE_PATH):
+        for f in os.listdir(base_path):
             # check if item is a folder
             # can be eliminated late for efficiency
-            folder_path = os.path.join(BASE_PATH, f)
+            folder_path = os.path.join(base_path, f)
             if os.path.isdir(folder_path):
                 folders.append(f)
         all_folders = sorted(folders)  # sorted for for loop later
@@ -78,7 +78,7 @@ def search_unsent(BASE_PATH, LOG_FILE):
 
     # search in relevant folders
     for folder in search_folders:
-        folder_path = os.path.join(BASE_PATH, folder)
+        folder_path = os.path.join(base_path, folder)
         wavs = []
 
         for file in os.listdir(folder_path):
@@ -116,20 +116,20 @@ def main():
 
     config = get_config(args.config)
 
-    BASE_PATH = config["PATHS"]["BASE_PATH"]
+    base_path = config["PATHS"]["BASE_PATH"]
 
     # log file to track clips that have alr been sent (tracker)
-    LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
+    log_file = os.path.join(base_path, "sent_clips.log")
 
-    PORT = config["MQTT"]["PORT"]
-    BROKER = config["MQTT"]["BROKER"]
-    TOPIC = "test/scansend/" + config["MQTT"]["DEVICE"]
-    PATH_TO_CA_PEM = config["PATHS"]["PATH_TO_CA_PEM"]
-    SESSION_ID = config["MQTT"]["SESSION_ID"]
-    USER = config["MQTT"]["USER"]
-    PASS = config["MQTT"]["PASS"]
+    port = config["MQTT"]["PORT"]
+    broker = config["MQTT"]["BROKER"]
+    topic = "test/" + config["MQTT"]["BASE_TOPIC"] + "/" + config["MQTT"]["DEVICE"]
+    path_to_ca_pem = config["PATHS"]["PATH_TO_CA_PEM"]
+    session_id = config["MQTT"]["SESSION_ID"]
+    user = config["MQTT"]["USER"]
+    password = config["MQTT"]["PASS"]
 
-    files_to_send = search_unsent(BASE_PATH, LOG_FILE)
+    files_to_send = search_unsent(base_path, log_file)
 
     if not files_to_send:
         print("No new clips we need to send")
@@ -137,20 +137,20 @@ def main():
 
     # ensure only sending completed clip, (done in sagemic_local.py)
 
-    client = mqtt.Client(client_id=SESSION_ID)
+    client = mqtt.Client(client_id=session_id)
 
-    client.username_pw_set(USER, PASS)
+    client.username_pw_set(user, password)
 
     # use certificate.pem to authenticate msg with port 8883
     client.tls_set(
-        ca_certs=PATH_TO_CA_PEM,
+        ca_certs=path_to_ca_pem,
         certfile=None,
         keyfile=None,
         cert_reqs=ssl.CERT_REQUIRED,
         tls_version=ssl.PROTOCOL_TLS,
     )
 
-    client.connect(BROKER, PORT)
+    client.connect(broker, port)
 
     client.loop_start()
 
@@ -162,7 +162,7 @@ def main():
         filename = os.path.basename(filepath)
 
         # make dynamic topic
-        dynamic_topic = f"{TOPIC}/{filename}"
+        dynamic_topic = f"{topic}/{filename}"
 
         try:
             with open(filepath, "rb") as wav_file:  # open in raw binary mode
@@ -174,7 +174,7 @@ def main():
                 )
                 result.wait_for_publish()
 
-                write_log_file(filepath, LOG_FILE)
+                write_log_file(filepath, log_file)
                 time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except
