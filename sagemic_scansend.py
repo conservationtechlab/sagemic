@@ -23,28 +23,28 @@ USER = ""  # ADD HERE!
 PASS = ""  # ADD HERE!
 
 
-# function to compress .wav file to .mp3 in stdout
+# function to compress .wav file to .flac in stdout
 def compress_audio(wav_path):
-    """ Compresses given .wav file into .mp3 format and outputs to stdout.
+    """ Compresses given .wav file into .flac format and outputs to stdout.
 
     Args:
         filepath (str): Path to the .wav file written by sagemic_local.
 
     Returns:
-        bytes: Raw stdout binary data of the converted mp3.
+        bytes: Raw stdout binary data of the converted flac.
     """
     command = [
         'ffmpeg',
         '-i', wav_path,
-        '-f', 'mp3',
-        '-b:a', '192k',  # no difference to human ear
+        '-f', 'flac',
         '-'  # output to stdout
     ]
 
     process = subprocess.run(
         command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL
+        stderr=subprocess.DEVNULL,
+        check=True
     )
 
     return process.stdout
@@ -167,14 +167,14 @@ def main():
         filename = os.path.basename(filepath)
 
         # make dynamic topic
-        mp3_filename = os.path.splitext(filename)[0] + ".mp3"
-        dynamic_topic = f"{TOPIC}/{mp3_filename}"
+        flac_filename = os.path.splitext(filename)[0] + ".flac"
+        dynamic_topic = f"{TOPIC}/{flac_filename}"
 
         try:
-            mp3_data = compress_audio(filepath)
+            flac_data = compress_audio(filepath)
             result = client.publish(
                 dynamic_topic,
-                bytearray(mp3_data),
+                bytearray(flac_data),
                 qos=1
             )
             result.wait_for_publish()
