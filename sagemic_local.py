@@ -57,7 +57,7 @@ def audio_callback(
         print(status)
 
     local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
-    base_path = config["PATH"]["BASE_PATH"]
+    base_path = config["PATHS"]["BASE_PATH"]
     confidence_threshold = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
     sample_rate = config["SETTINGS"]["SAMPLERATE"]
 
