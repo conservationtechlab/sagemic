@@ -123,7 +123,7 @@ def main():
 
     port = config["MQTT"]["PORT"]
     broker = config["MQTT"]["BROKER"]
-    topic = "test/" + config["MQTT"]["BASE_TOPIC"] + "/" + config["MQTT"]["DEVICE"]
+    topic = config["MQTT"]["BASE_TOPIC"] + "/" + config["MQTT"]["DEVICE"]
     path_to_ca_pem = config["PATHS"]["PATH_TO_CA_PEM"]
     session_id = config["MQTT"]["SESSION_ID"]
     user = config["MQTT"]["USER"]
