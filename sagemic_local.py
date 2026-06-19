@@ -6,9 +6,13 @@ The stream is chunked into 3-second blocks to match BirdNET’s expected
 window size and detections above a confidence threshold are printed.
 
 """
+
+import os  # added for scansend service
 import time
+import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from functools import partial  # for config argument in callback
 
 import numpy as np
 import sounddevice as sd
@@ -17,36 +21,18 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path, get_device_id
-
-LATITUDE = 32.7157
-LONGITUDE = -117.1611
-SAMPLERATE = 48000
-CONFIDENCE_THRESHOLD = 0.1
-
-LOCAL_TZ = ZoneInfo("America/Los_Angeles")
-
-# Directory to store detected clips by date.
-BASE_PATH = '/path/to/store/detections'
-
-# The BirdNET model expects clips of at least 3 seconds for analysis
-BLOCK_DURATION = 3
-BLOCKSIZE = BLOCK_DURATION * SAMPLERATE
-
-audio_buffer = np.zeros(BLOCKSIZE, dtype='float32')
-
-analyzer = Analyzer()
-
-recording_buffer = RecordingBuffer(
-    analyzer=analyzer,
-    lat=LATITUDE,
-    lon=LONGITUDE,
-    rate=SAMPLERATE,
-    buffer=audio_buffer
-)
+from sagemic.helpers import check_path, get_config, get_device_id
 
 
-def audio_callback(indata, frames, time_obj, status):
+# callback defined here to use with config variables
+def audio_callback(
+    indata,
+    frames,
+    time_obj,
+    status,
+    recording_buffer,
+    config=None
+):
     """Process one audio block from the input stream and print detections.
 
     Called by `sounddevice` for each incoming audio block. Flattens the
@@ -70,9 +56,14 @@ def audio_callback(indata, frames, time_obj, status):
     if status:
         print(status)
 
-    timestamp = datetime.now(LOCAL_TZ)
+    local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
+    base_path = config["PATHS"]["BASE_PATH"]
+    confidence_threshold = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
+    sample_rate = config["SETTINGS"]["SAMPLERATE"]
+
+    timestamp = datetime.now(local_tz)
     date = timestamp.strftime('%Y-%m-%d')
-    path = check_path(date, BASE_PATH)
+    path = check_path(date, base_path)
 
     # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
@@ -89,41 +80,81 @@ def audio_callback(indata, frames, time_obj, status):
     if detections:
         print("At least one detection.")
         for detection in detections:
-            if detection['confidence'] > CONFIDENCE_THRESHOLD:
-                name = detection['scientific_name'].replace(" ", "_").lower()
-                confidence = detection['confidence']
-                time = timestamp.strftime('%H-%M-%S')
+            if detection["confidence"] > confidence_threshold:
+                name = detection["scientific_name"].replace(" ", "_").lower()
+                confidence = detection["confidence"]
+
+                # new for filenames w/ data + time
+                date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
-                write(
-                      f"{path}/{time}_{name}_{confidence:.2f}.wav",
-                      48000,
-                      indata
-                     )
+
+                # added to track complete files
+                final_filename = (
+                    f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                )
+                temp_filename = final_filename + ".tmp"
+                write(temp_filename, sample_rate, indata)
+                os.rename(
+                    temp_filename, final_filename
+                )  # to .wav for scansend when done
     else:
         print("No detections")
 
 
 def main():
-    """Open the audio input stream and run continuous BirdNET analysis.
+    """ Parses config filepath and initalizes audio variables.
 
-    Uses available audio device, opens a mono input stream at the configured
+    Lists available audio devices, opens a mono input stream at the configured
     sample rate and block size, and keeps the main thread alive while the
     `audio_callback` performs analysis on each block. Press Ctrl+C to stop.
     """
+
+    # parse given config filepath
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, help="Path to config file")
+    args = parser.parse_args()
+
+    config = get_config(args.config)
+
+    # audio variables
+    latitude = config["SETTINGS"]["LATITUDE"]
+    longitude = config["SETTINGS"]["LONGITUDE"]
+    sample_rate = config["SETTINGS"]["SAMPLERATE"]
+
+    # The BirdNET model expects clips of at least 3 seconds for analysis
+    block_duration = config["SETTINGS"]["BLOCK_DURATION"]
+    block_size = block_duration * sample_rate
+
+    audio_buffer = np.zeros(block_size, dtype="float32")
+
+    analyzer = Analyzer()
+
+    recording_buffer = RecordingBuffer(
+        analyzer=analyzer, lat=latitude, lon=longitude,
+        rate=sample_rate, buffer=audio_buffer
+    )
+
+    arg_callback = partial(
+        audio_callback,
+        recording_buffer=recording_buffer,
+        config=config
+    )
+
+    # start listener
     print("Scanning for audiomoth or INMP441")
-
     sd.default.device = get_device_id()
-
+    
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
 
     try:
         with sd.InputStream(
-            callback=audio_callback,
-            samplerate=SAMPLERATE,
+            callback=arg_callback,
+            samplerate=sample_rate,
             channels=1,
-            blocksize=BLOCKSIZE,
+            blocksize=block_size,
             dtype='int32' # for inmp441
         ):
             while True:
@@ -132,5 +163,5 @@ def main():
         print("\nReceived keyboard interrupt. Quitting.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
