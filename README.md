@@ -101,6 +101,15 @@ pip install <.whl file name> --no-cache-dir
 pip install -e .
 sudo apt-get install libportaudio2
 ```
+TFlite is only compatible with NumPy 1.x, so we need to downgrade Numpy:  
+```
+pip install "numpy<2"
+```
+We also need ffmpeg, which doesn't come on Raspberry Pi Lite OS.  
+```
+sudo apt update
+sudo apt install ffmpeg
+```
 
 ### Setup Files and Libraries
 1. Follow the README.md in `/sagemic/systemd`
