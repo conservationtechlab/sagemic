@@ -1,45 +1,44 @@
 """
-Service to check new BirdNet Detection Files and send them via MQTTS
+Service to check new BirdNet Detection Files and send them via MQTTS.
 """
 
 # libraries
 import os
+import argparse
 import ssl
 import time  # for sending delays
 import bisect
 import paho.mqtt.client as mqtt
 
-BASE_PATH = "/path"  # ADD HERE! Same as sagemic_local
-# log file to track clips that have alr been sent (tracker)
-LOG_FILE = os.path.join(BASE_PATH, "sent_clips.log")
-
-PORT = 8883
-BROKER = ""  # ADD HERE!
-TOPIC = "test/scansend"
-PATH_TO_CA_PEM = "/path"  # ADD HERE!
-SESSION_ID = ""  # ADD HERE!
-USER = ""  # ADD HERE!
-PASS = ""  # ADD HERE!
+from sagemic.helpers import get_config
 
 
 # function to write sent filepaths to log file
-def write_log_file(filepath):
-    """Logs a successfully sent file with its filepath
+def write_log_file(filepath, log_file):
+    """Logs a successfully sent file with its filepath.
 
     Args:
-        filepath (str): Path to the .wav file written by sagemic_local
-        - also means the file has been sent by this script
+        filepath (str): Path to the .wav file written by sagemic_local.
+        - Also means the file has been sent by this script.
+
+        log_file (str): Path to the log file, defined in the config file.
     """
 
-    with open(LOG_FILE, "a", encoding='utf-8') as f:  # append to bottom
+    with open(log_file, "a", encoding='utf-8') as f:  # append to bottom
         f.write(f"{filepath}\n")
 
 
-def search_unsent():
-    """ Searches parent directory and date folders for unsent files
+def search_unsent(base_path, log_file):
+    """ Searches parent directory and date folders for unsent files.
+
+    Args:
+        base_path (str): Path to the base directory to audio files.
+        - Defined in config.
+
+        log_file (str): Path to the log file, defined in the config file.
 
     Returns:
-        Returns an array of filepaths of unsent files
+        dict: Returns an dictionary of filepaths of unsent files.
     """
     sent_files = set()
     files_to_send = []
@@ -47,8 +46,8 @@ def search_unsent():
     start_file = ""
 
     # Read the log file to get entire set and latest date read
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(log_file):
+        with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
             if lines:
                 sent_files = set(line.strip() for line in lines)
@@ -59,10 +58,10 @@ def search_unsent():
     # filter out folders only in basepath
     try:
         folders = []
-        for f in os.listdir(BASE_PATH):
+        for f in os.listdir(base_path):
             # check if item is a folder
             # can be eliminated late for efficiency
-            folder_path = os.path.join(BASE_PATH, f)
+            folder_path = os.path.join(base_path, f)
             if os.path.isdir(folder_path):
                 folders.append(f)
         all_folders = sorted(folders)  # sorted for for loop later
@@ -79,7 +78,7 @@ def search_unsent():
 
     # search in relevant folders
     for folder in search_folders:
-        folder_path = os.path.join(BASE_PATH, folder)
+        folder_path = os.path.join(base_path, folder)
         wavs = []
 
         for file in os.listdir(folder_path):
@@ -104,8 +103,33 @@ def search_unsent():
 
 # script only runs every few minutes (loop)
 def main():
-    """Main execution loop for scanning unsent files and sending them"""
-    files_to_send = search_unsent()
+    """
+    Parses config filepath argument and initalizes variables.
+
+    Main execution loop for scanning unsent files and sending them.
+    """
+
+    # parse given config filepath
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True, help="Path to config file")
+    args = parser.parse_args()
+
+    config = get_config(args.config)
+
+    base_path = config["PATHS"]["BASE_PATH"]
+
+    # log file to track clips that have alr been sent (tracker)
+    log_file = os.path.join(base_path, "sent_clips.log")
+
+    port = config["MQTT"]["PORT"]
+    broker = config["MQTT"]["BROKER"]
+    topic = config["MQTT"]["BASE_TOPIC"] + "/" + config["MQTT"]["DEVICE"]
+    path_to_ca_pem = config["PATHS"]["PATH_TO_CA_PEM"]
+    session_id = config["MQTT"]["SESSION_ID"]
+    user = config["MQTT"]["USER"]
+    password = config["MQTT"]["PASS"]
+
+    files_to_send = search_unsent(base_path, log_file)
 
     if not files_to_send:
         print("No new clips we need to send")
@@ -113,20 +137,20 @@ def main():
 
     # ensure only sending completed clip, (done in sagemic_local.py)
 
-    client = mqtt.Client(client_id=SESSION_ID)
+    client = mqtt.Client(client_id=session_id)
 
-    client.username_pw_set(USER, PASS)
+    client.username_pw_set(user, password)
 
     # use certificate.pem to authenticate msg with port 8883
     client.tls_set(
-        ca_certs=PATH_TO_CA_PEM,
+        ca_certs=path_to_ca_pem,
         certfile=None,
         keyfile=None,
         cert_reqs=ssl.CERT_REQUIRED,
         tls_version=ssl.PROTOCOL_TLS,
     )
 
-    client.connect(BROKER, PORT)
+    client.connect(broker, port)
 
     client.loop_start()
 
@@ -138,7 +162,7 @@ def main():
         filename = os.path.basename(filepath)
 
         # make dynamic topic
-        dynamic_topic = f"{TOPIC}/{filename}"
+        dynamic_topic = f"{topic}/{filename}"
 
         try:
             with open(filepath, "rb") as wav_file:  # open in raw binary mode
@@ -150,7 +174,7 @@ def main():
                 )
                 result.wait_for_publish()
 
-                write_log_file(filepath)
+                write_log_file(filepath, log_file)
                 time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except
