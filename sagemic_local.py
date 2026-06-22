@@ -21,7 +21,7 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path, get_config, get_device_id
+from sagemic.helpers import check_path, get_config, get_device_info
 
 
 # callback defined here to use with config variables
@@ -143,8 +143,10 @@ def main():
 
     # start listener
     print("Scanning for audiomoth or INMP441")
-    sd.default.device = get_device_id()
-    
+
+    device_info = get_device_info()
+    sd.default.device = device_info['id']
+
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
@@ -155,7 +157,7 @@ def main():
             samplerate=sample_rate,
             channels=1,
             blocksize=block_size,
-            dtype='int32' # for inmp441
+            dtype=device_info['dtype']
         ):
             while True:
                 time.sleep(1)

@@ -22,26 +22,29 @@ def check_path(date, base_path):
 
     return new_path
 
-def get_device_id():
+
+def get_device_info():
     """Checks which hardware is there before running
 
         Returns:
-            returns the device id of either audiomoth or inmp441
+            dict: {id, dtype}
+            - returns id and dtype for audiomoth/inmp441
     """
 
     devices = sd.query_devices()
 
     for i, dev in enumerate(devices):
         if 'audiomoth' in dev['name'].lower():
-            print(f"Using Audiomoth")
-            return i
-
-    for i, dev in enumerate(devices):
+            print("Using Audiomoth")
+            return {'id': i, 'dtype': 'int16'}
         if "googlevoicehat" in dev['name'].lower():
-            print(f"Using INMP441")
-            return i
-    print(f"Neither audiomoth nor INMP441 found. Using sysdefault (2)")
-    return 2
+            print("Using INMP441")
+            return {'id': i, 'dtype': 'int32'}
+
+    default_id = sd.default.device[0]
+    print("Neither audiomoth nor INMP441 found. Using default device")
+    return {'id': default_id, 'dtype': 'int16'}
+
 
 def get_config(config_file):
     """Reads config file, return as python dict.
