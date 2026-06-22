@@ -37,6 +37,8 @@ def get_device_info():
         if 'audiomoth' in dev['name'].lower():
             print("Using Audiomoth")
             return {'id': i, 'dtype': 'int16'}
+
+    for i, dev in enumerate(devices):
         if "googlevoicehat" in dev['name'].lower():
             print("Using INMP441")
             return {'id': i, 'dtype': 'int32'}
