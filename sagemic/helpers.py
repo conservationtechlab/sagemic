@@ -1,8 +1,10 @@
 """Tools needed by both Birbler and SageMic.
 """
 import os
+import sys
 import sounddevice as sd
 import yaml
+import numpy as np
 
 
 def check_path(date, base_path):
@@ -23,29 +25,70 @@ def check_path(date, base_path):
     return new_path
 
 
-def get_device_info():
+def inmp441_check(device_id, samplerate):
+    """ Checks if inmp441 is connected and listening
+
+    Args:
+        device_id (int): id of inmp441 found from get_device_id()
+        samplerate (int): samplerate of audio device from config
+
+    """
+
+    print("Checking INMP441")
+    recording = sd.rec(
+        int(0.5 * samplerate),
+        samplerate=samplerate,
+        channels=1,
+        dtype='int32',
+        device=device_id
+    )
+    sd.wait()
+
+    peak_to_peak = np.ptp(recording)
+
+    if peak_to_peak == 0:
+        sys.exit("Flatline detected. INMP441 not connected properly!")
+
+    print(f"INMP441 is connected. Peak-to-peak: {peak_to_peak})")
+
+
+def get_device_id(pref_name, samplerate):
     """Checks which hardware is there before running
 
+        Args:
+            pref_device: string, name of audio device in config file
+            samplerate: int, samplerate from config file
+            - used for inmp441 error checking
+
         Returns:
-            dict: {id, dtype}
-            - returns id and dtype for audiomoth/inmp441
+            int: i
+            - returns id for audio device
     """
 
     devices = sd.query_devices()
 
-    for i, dev in enumerate(devices):
-        if 'audiomoth' in dev['name'].lower():
-            print("Using Audiomoth")
-            return {'id': i, 'dtype': 'int16'}
+    device_id = -1
 
+    # search for id number of device
     for i, dev in enumerate(devices):
-        if "googlevoicehat" in dev['name'].lower():
-            print("Using INMP441")
-            return {'id': i, 'dtype': 'int32'}
+        curr_device = dev['name'].split(':', 1)[0]
+        # search exact match
+        if pref_name == curr_device:
+            device_id = i
+            break
 
-    default_id = sd.default.device[0]
-    print("Neither audiomoth nor INMP441 found. Using default device")
-    return {'id': default_id, 'dtype': 'int16'}
+    # error checking for none inmp441
+    if "googlevoicehat" not in pref_name:
+        if device_id == -1:
+            sys.exit(f"{pref_name} not found! Check connections")
+    else:  # error checking for inmp441
+        if device_id == -1:
+            sys.exit("Check INMP441 device tree overlay! Not found")
+        else:
+            inmp441_check(device_id, samplerate)
+
+    print(f"Using {pref_name}")
+    return device_id
 
 
 def get_config(config_file):
