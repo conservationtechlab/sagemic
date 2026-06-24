@@ -1,0 +1,31 @@
+# --- example config file --- 
+# copy this file, rename to 'config.yaml'
+# update this file with your actual paths/info
+# make sure to add the your config.yaml to gitignore!
+
+PATHS:
+  BASE_PATH: "/path/to/directoryForSagemicFiles"
+  PATH_TO_CA_PEM: "/path/to/certificate"
+
+SETTINGS:
+  # Change  if outside of San Diego
+  LATITUDE: 32.7157
+  LONGITUDE: -117.1611
+  LOCAL_TZ: "America/Los_Angeles"
+
+  # Default for audio device
+  SAMPLERATE: 48000
+  CONFIDENCE_THRESHOLD: 0.1
+  BLOCK_DURATION: 3
+
+MQTT:
+  # Default Port for MQTTS
+  PORT: 8883
+  # Usage: NodeRed assumes the first slash parses the base_topic and device name.
+  # If a slash is used in base_topic, make sure to adjust the parsing on NodeRed 
+  BASE_TOPIC: "topic_name"
+  DEVICE: "device_name"
+  BROKER: "<ip>"
+  SESSION_ID: "client_id"
+  USER: "username"
+  PASS: "password"

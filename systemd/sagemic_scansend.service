@@ -6,5 +6,5 @@ After=network.target
 Type=oneshot
 User= # ADD HERE!
 
-ExecStart= # ADD HERE!
-WorkingDirectory= # ADD HERE!
+ExecStart= # /path/to/venv/bin/python /path/to/sagemic_scansend.py --config /path/to/config.yaml
+WorkingDirectory= # /path/to/repo

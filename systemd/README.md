@@ -40,3 +40,88 @@ or
 Invalid number of channels
 ```
 You can fix this by stopping or disabling services like in step 3 or 6.
+
+
+## LTE Setup
+If using the Sixfab LTE hat, you will need to use the lte setup systemd service
+file so that it configures the connection properly on each reboot. 
+
+Prior to that, you will need to conduct a 1 time setup step to configure
+the proper APN in the modem hardware.
+
+If using the recommended EIoT Club SIM within the US, the APN will be "america.bics"
+ 
+Move the shell script and move the systemd service file.
+```
+cd ~/sagemic/systemd
+sudo cp lte-up.sh /usr/local/bin/lte-up.sh
+chmod +x /usr/local/bin/lte-up.sh
+sudo cp lte-up.service /etc/systemd/system
+```
+
+Install modem packages and set up the APN manually in the modem, only needs to be done once.
+```
+sudo apt install modemmanager libqmi-utils minicom
+mmcli -L
+```
+You are looking for the number after ../Modem/#. That # is the modem ID we will use later. 
+It will probably be 0. But we should check for it because there's a chance it is 1, 2...
+
+```
+mmcli -m <id>
+```
+You should see a few /dev/ttyUSB# listed. Look for one that says (at). There may be multiple. Pick one for now.
+
+
+Replace that number in the command below where the # is. 
+```
+sudo minicom -D /dev/ttyUSB#
+```
+
+You will now be in an AT interface, interfacing directly with the modem. Commands look a little different.
+
+
+To see if you chose the correct USB# port, try the following command.
+```
+AT
+```
+
+If you see an 'OK' continue. If not, exit this and try the other USB# that said (at).
+
+```
+AT+CGDCONT=1,"IP","america.bics"
+```
+
+Verify the APN took with:
+```
+AT+CGDCONT?
+```
+
+You should see the APN we just set.
+
+To exit minicom: Ctrl + A, X
+
+```
+reboot
+```
+
+Now that your modem knows the correct APN, you can enable the lte-setup service
+and reboot one more time.
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable lte-up.service
+sudo systemctl start lte-up.service
+reboot
+```
+
+When you are once again inside the pi, you should be able to ping google using
+the wwan0 (LTE) connection. If this pings correctly, congrats, you set up LTE.
+
+```
+sudo ping -I wwan0 google.com
+```
+
+*If configuring LTE while sshed in, you will need to re-ssh in after reboots, if this is annoying, use
+a monitor/keyboard if you have a desktop OS.
+**mmcli -L may not see board initially if modemmanager was installed after modem was plugged in. If this happens, reboot while modem is plugged in and try mmcli -L again.
