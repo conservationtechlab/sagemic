@@ -8,37 +8,9 @@ import argparse
 import ssl
 import time  # for sending delays
 import bisect
-import subprocess
 import paho.mqtt.client as mqtt
 
 from sagemic.helpers import get_config
-
-
-# function to compress .wav file to .flac in stdout
-def compress_audio(wav_path):
-    """ Compresses given .wav file into .flac format and outputs to stdout.
-
-    Args:
-        filepath (str): Path to the .wav file written by sagemic_local.
-
-    Returns:
-        bytes: Raw stdout binary data of the converted flac.
-    """
-    command = [
-        'ffmpeg',
-        '-i', wav_path,
-        '-f', 'flac',
-        '-'  # output to stdout
-    ]
-
-    process = subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=True
-    )
-
-    return process.stdout
 
 
 # function to write sent filepaths to log file
