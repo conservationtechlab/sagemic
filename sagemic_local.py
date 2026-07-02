@@ -21,7 +21,7 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path, get_config
+from sagemic.helpers import check_path, get_config, get_device_id
 
 
 # callback defined here to use with config variables
@@ -103,9 +103,7 @@ def audio_callback(
 
 
 def main():
-    """Open the audio input stream and run continuous BirdNET analysis.
-
-    Parses config filepath and initalizes audio variables.
+    """ Parses config filepath and initalizes audio variables.
 
     Lists available audio devices, opens a mono input stream at the configured
     sample rate and block size, and keeps the main thread alive while the
@@ -123,6 +121,8 @@ def main():
     latitude = config["SETTINGS"]["LATITUDE"]
     longitude = config["SETTINGS"]["LONGITUDE"]
     sample_rate = config["SETTINGS"]["SAMPLERATE"]
+    audio_device = config["SETTINGS"]["AUDIO_DEVICE"]
+    audio_dtype = config["SETTINGS"]["AUDIO_DTYPE"]
 
     # The BirdNET model expects clips of at least 3 seconds for analysis
     block_duration = config["SETTINGS"]["BLOCK_DURATION"]
@@ -144,12 +144,10 @@ def main():
     )
 
     # start listener
-    devices = sd.query_devices()
-    print("Available audio devices:")
-    for i, dev in enumerate(devices):
-        print(f"  {i}: {dev['name']}")
+    print("Scanning for audio devices")
 
-    sd.default.device = 2
+    sd.default.device = get_device_id(audio_device, sample_rate)
+
     print("\nListening for birds...")
     print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
     print("Press Ctrl+C to stop.")
@@ -160,6 +158,7 @@ def main():
             samplerate=sample_rate,
             channels=1,
             blocksize=block_size,
+            dtype=audio_dtype
         ):
             while True:
                 time.sleep(1)
