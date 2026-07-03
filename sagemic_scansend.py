@@ -125,9 +125,8 @@ def main():
     broker = config["MQTT"]["BROKER"]
     topic = config["MQTT"]["BASE_TOPIC"] + "/" + config["MQTT"]["DEVICE"]
     path_to_ca_pem = config["PATHS"]["PATH_TO_CA_PEM"]
-    session_id = config["MQTT"]["SESSION_ID"]
-    user = config["MQTT"]["USER"]
-    password = config["MQTT"]["PASS"]
+    path_to_crt = config["PATHS"]["PATH_TO_CRT"]
+    path_to_key = config["PATHS"]["PATH_TO_KEY"]
 
     files_to_send = search_unsent(base_path, log_file)
 
@@ -137,15 +136,13 @@ def main():
 
     # ensure only sending completed clip, (done in sagemic_local.py)
 
-    client = mqtt.Client(client_id=session_id)
-
-    client.username_pw_set(user, password)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
     # use certificate.pem to authenticate msg with port 8883
     client.tls_set(
         ca_certs=path_to_ca_pem,
-        certfile=None,
-        keyfile=None,
+        certfile=path_to_crt,
+        keyfile=path_to_key,
         cert_reqs=ssl.CERT_REQUIRED,
         tls_version=ssl.PROTOCOL_TLS,
     )
@@ -175,6 +172,7 @@ def main():
                 result.wait_for_publish()
 
                 write_log_file(filepath, log_file)
+                print(f"Sent {filepath}")
                 time.sleep(0.5)  # to prevent network flood
 
         except Exception as e:  # pylint: disable=broad-except
