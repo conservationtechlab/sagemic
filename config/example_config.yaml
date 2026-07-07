@@ -18,6 +18,12 @@ SETTINGS:
   CONFIDENCE_THRESHOLD: 0.1
   BLOCK_DURATION: 3
 
+  # for audio_device, enter exact name from arecord-l in brackets
+  # audiomoth: 48kHz AudioMoth USB Microphone
+  # inmp441: snd_rpi_googlevoicehat_soundcar
+  AUDIO_DEVICE: "exact_name_from_arecord-l"
+  AUDIO_DTYPE: "int16_or_int32"
+
 MQTT:
   # Default Port for MQTTS
   PORT: 8883
