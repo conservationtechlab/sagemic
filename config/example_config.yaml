@@ -24,6 +24,13 @@ SETTINGS:
   AUDIO_DEVICE: "exact_name_from_arecord-l"
   AUDIO_DTYPE: "int16_or_int32"
 
+  # 1 for RMS Filtering of Audio Chunks, 0 for Continuous Recording
+  RMS_FILTER: 1
+  # Ambient RMS multiplier to determine trigger threshold 
+  THRESH_MULTIPLIER: 1.1
+  # Determines how much new recordings affect ambient noise floor
+  EMA_ALPHA: 0.1
+
 MQTT:
   # Default Port for MQTTS
   PORT: 8883
