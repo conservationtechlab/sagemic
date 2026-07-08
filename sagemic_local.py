@@ -39,6 +39,9 @@ def run_inference(indata, recording_buffer, config):
             Holds raw audio data/coordinates and handles analysis pipeline.
         config (dict): Holds custom user configuration values for the script.
 
+    Returns:
+        (bool): True if there is a detection, False otherwise
+
     Side Effects:
         Updates the global `recording_buffer.buffer` and writes detection
         summaries to stdout.
@@ -87,8 +90,10 @@ def run_inference(indata, recording_buffer, config):
                 os.rename(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
+        return True
     else:
         print("No detections")
+        return False
 
 
 def audio_callback_raw(
@@ -123,6 +128,20 @@ def audio_callback_raw(
         print(status)
 
     run_inference(indata, recording_buffer, config)
+
+
+def update_ambientrms(old_ambient, curr_rms, config, rms_dict):
+    """
+    Updates ambient noise floor based on given current RMS
+
+    Called by audio_callback_rms.
+
+    Args:
+        old_ambient (float): current ambient noise floor
+        curr_rms (float): rms of current audio block being processed
+    """
+    alpha = config["SETTINGS"]["EMA_ALPHA"]
+    rms_dict["ambient_rms"] = (alpha * curr_rms) + ((1 - alpha) * old_ambient)
 
 
 def audio_callback_rms(
@@ -177,29 +196,26 @@ def audio_callback_rms(
         return
 
     ambient_multiplier = config["SETTINGS"]["THRESH_MULTIPLIER"]
-    ambient_rms = rms_dict["ambient_rms"]
+    curr_ambientrms = rms_dict["ambient_rms"]
     prev_processed = rms_dict["prev_processed"]
 
-    trigger_threshold = ambient_rms * ambient_multiplier
+    trigger_threshold = curr_ambientrms * ambient_multiplier
 
     if current_rms > trigger_threshold:
 
-        # if haven't processed pre-trigger block, process it
-        if not prev_processed and rms_dict["prev_block"] is not None:
+        if not prev_processed:
             print("Processing pre-trigger recording")
             run_inference(rms_dict["prev_block"], recording_buffer, config)
 
-        run_inference(indata, recording_buffer, config)
+        # if no detection, use to update ambient floor
+        if not run_inference(indata, recording_buffer, config):
+            update_ambientrms(curr_ambientrms, current_rms, config, rms_dict)
 
-        # Mark this block as processed for the next loop
         rms_dict["prev_processed"] = True
+
     else:
         print(f"RMS: {current_rms:.5f}, Trig Thresh: {trigger_threshold:.5f}")
-        alpha = config["SETTINGS"]["EMA_ALPHA"]
-        rms_dict["ambient_rms"] = (
-            (alpha * current_rms) +
-            ((1 - alpha) * rms_dict["ambient_rms"])
-        )
+        update_ambientrms(curr_ambientrms, current_rms, config, rms_dict)
         rms_dict["prev_processed"] = False
 
     rms_dict["prev_block"] = indata.copy()
