@@ -4,11 +4,59 @@ import os
 import sys
 import sounddevice as sd
 import yaml
+import sqlite3
 import numpy as np
+
+
+def insert_database(base_path, filepath, species, confidence, timestamp):
+    """
+    Inserts detection entries into the database.
+    Called by sagemic_local.
+
+    Args:
+        base_path (str): path to file  storing directory
+        filepath (str): path to detection audio file
+        species (str): species of detection
+        confidence (float): confidence of detection
+        timestamp (str): in YMD_HMS format
+    """
+    db_path = os.path.join(base_path, "detections.db")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO detections "
+            "(filepath, species, confidence, timestamp, sent) "
+            "VALUES (?, ?, ?, ?, 0)",
+            (filepath, species, round(confidence, 2), timestamp)
+        )
+
+
+def create_database(base_path):
+    """
+    Checks if database exists, if not then creates detections database.
+
+    Called by sagemic_local and sagemic_scansend
+
+    Args:
+        base_path (str): path to file storing directory
+    """
+    db_path = os.path.join(base_path, "detections.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS detections (
+                filepath TEXT PRIMARY KEY,
+                species TEXT,
+                confidence REAL,
+                time DATETIME,
+                sent INTEGER DEFAULT 0
+            )
+        ''')
 
 
 def check_path(date, base_path):
     """Create new folder for date to store detections.
+
+    Called by sagemic_local.py.
 
     Args:
         date (str): Current date in YYYY-MM-DD.
@@ -27,6 +75,8 @@ def check_path(date, base_path):
 
 def inmp441_check(device_id, samplerate):
     """ Checks if inmp441 is connected and listening
+
+    Called by get_device_id
 
     Args:
         device_id (int): id of inmp441 found from get_device_id()

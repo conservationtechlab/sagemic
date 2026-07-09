@@ -21,7 +21,7 @@ from scipy.io.wavfile import write
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-from sagemic.helpers import check_path, get_config, get_device_id
+from sagemic.helpers import insert_database, create_database, check_path, get_config, get_device_id
 
 
 # callback defined here to use with config variables
@@ -62,7 +62,7 @@ def audio_callback(
     sample_rate = config["SETTINGS"]["SAMPLERATE"]
 
     timestamp = datetime.now(local_tz)
-    date = timestamp.strftime('%Y-%m-%d')
+    date = timestamp.strftime('%Y%m%d')
     path = check_path(date, base_path)
 
     # Flatten the data to a 1D array as expected by birdnetlib
@@ -85,7 +85,7 @@ def audio_callback(
                 confidence = detection["confidence"]
 
                 # new for filenames w/ data + time
-                date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
+                date_time = timestamp.strftime("%Y%m%d_%H%M%S")
 
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
 
@@ -98,6 +98,9 @@ def audio_callback(
                 os.rename(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
+
+            insert_database(base_path, final_filename, name, confidence, date_time)
+
     else:
         print("No detections")
 
@@ -116,6 +119,9 @@ def main():
     args = parser.parse_args()
 
     config = get_config(args.config)
+    base_path = config["PATHS"]["BASE_PATH"]
+
+    create_database(base_path)
 
     # audio variables
     latitude = config["SETTINGS"]["LATITUDE"]
