@@ -67,6 +67,11 @@ def create_database(base_path):
             )
         ''')
 
+        conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_unsent_files
+            ON detections(sent)
+        ''')
+
 
 def check_path(date, base_path):
     """Create new folder for date to store detections.
