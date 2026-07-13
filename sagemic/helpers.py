@@ -5,10 +5,12 @@ import sys
 import sounddevice as sd
 import yaml
 import sqlite3
+import platform
+from importlib.metadata import version
 import numpy as np
 
 
-def insert_database(base_path, filepath, species, confidence, timestamp):
+def insert_database(base_path, filepath, sample_rate, bitrate):
     """
     Inserts detection entries into the database.
     Called by sagemic_local.
@@ -16,18 +18,29 @@ def insert_database(base_path, filepath, species, confidence, timestamp):
     Args:
         base_path (str): path to file  storing directory
         filepath (str): path to detection audio file
-        species (str): species of detection
-        confidence (float): confidence of detection
-        timestamp (str): in YMD_HMS format
+        sample_rate (integer): user defined in config file
+        bitrate (real): audio bitrate calculated in main
+
     """
+
+    try:
+        with open("/sys/firmware/devicetree/base/model", "r") as f:
+            hardware = f.read().strip('\x00')
+    except FileNotFoundError:
+        hardware = "Unknown"
+
+    firmware = platform.release().split('+')[0]
+
+    model = f"birdnetlib_v{version('birdnetlib')}"
+
     db_path = os.path.join(base_path, "detections.db")
 
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO detections "
-            "(filepath, species, confidence, timestamp, sent) "
-            "VALUES (?, ?, ?, ?, 0)",
-            (filepath, species, round(confidence, 2), timestamp)
+            "(sent, filepath, hardware, firmware, model, sample_rate, bitrate)"
+            "VALUES (0, ?, ?, ?, ?, ?, ?)",
+            (filepath, hardware, firmware, model, sample_rate, bitrate)
         )
 
 
@@ -44,11 +57,13 @@ def create_database(base_path):
     with sqlite3.connect(db_path) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS detections (
+                sent INTEGER DEFAULT 0,
                 filepath TEXT PRIMARY KEY,
-                species TEXT,
-                confidence REAL,
-                time DATETIME,
-                sent INTEGER DEFAULT 0
+                hardware TEXT,
+                firmware TEXT,
+                model TEXT,
+                sample_rate INTEGER,
+                bitrate INTEGER
             )
         ''')
 

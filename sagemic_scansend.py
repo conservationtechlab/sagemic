@@ -46,7 +46,9 @@ def main():
 
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT filepath FROM detections WHERE sent = 0 ORDER BY timestamp ASC")
+        cursor.execute(
+            "SELECT filepath FROM detections WHERE sent = 0 ORDER BY filepath ASC"
+        )
         files_to_send = [row[0] for row in cursor.fetchall()]
 
     if not files_to_send:
