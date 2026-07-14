@@ -2,15 +2,15 @@
 """
 import os
 import sys
-import sounddevice as sd
-import yaml
 import sqlite3
 import platform
 from importlib.metadata import version
+import sounddevice as sd
+import yaml
 import numpy as np
 
 
-def insert_database(base_path, filepath, sample_rate, bitrate):
+def insert_database(base_path, filepath, species, confidence, timestamp, sample_rate, bitrate):
     """
     Inserts detection entries into the database.
     Called by sagemic_local.
@@ -24,7 +24,7 @@ def insert_database(base_path, filepath, sample_rate, bitrate):
     """
 
     try:
-        with open("/sys/firmware/devicetree/base/model", "r") as f:
+        with open("/sys/firmware/devicetree/base/model", "r", encoding="utf-8") as f:
             hardware = f.read().strip('\x00')
     except FileNotFoundError:
         hardware = "Unknown"
@@ -38,9 +38,9 @@ def insert_database(base_path, filepath, sample_rate, bitrate):
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO detections "
-            "(sent, filepath, hardware, firmware, model, sample_rate, bitrate)"
-            "VALUES (0, ?, ?, ?, ?, ?, ?)",
-            (filepath, hardware, firmware, model, sample_rate, bitrate)
+            "(sent, filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)"
+            "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)
         )
 
 
@@ -59,6 +59,9 @@ def create_database(base_path):
             CREATE TABLE IF NOT EXISTS detections (
                 sent INTEGER DEFAULT 0,
                 filepath TEXT PRIMARY KEY,
+                species TEXT,
+                confidence REAL,
+                timestamp TEXT,
                 hardware TEXT,
                 firmware TEXT,
                 model TEXT,

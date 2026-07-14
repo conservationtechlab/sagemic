@@ -71,7 +71,7 @@ def audio_callback(
     bitrate = sample_rate * int(dtype[3:])
 
     timestamp = datetime.now(local_tz)
-    date = timestamp.strftime('%Y%m%d')
+    date = timestamp.strftime('%Y-%m-%d')
     path = check_path(date, base_path)
 
     # Flatten the data to a 1D array as expected by birdnetlib
@@ -94,7 +94,7 @@ def audio_callback(
                 confidence = detection["confidence"]
 
                 # new for filenames w/ data + time
-                date_time = timestamp.strftime("%Y%m%d_%H%M%S")
+                date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
 
                 print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
 
@@ -108,7 +108,15 @@ def audio_callback(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
 
-            insert_database(base_path, final_filename, sample_rate, bitrate)
+                insert_database(
+                    base_path,
+                    final_filename,
+                    name,
+                    round(confidence, 2),
+                    date_time,
+                    sample_rate,
+                    bitrate
+                )
 
     else:
         print("No detections")
