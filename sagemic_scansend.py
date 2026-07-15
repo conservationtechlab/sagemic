@@ -17,6 +17,7 @@ from sagemic.helpers import get_config
 def write_log_file(filepath, log_file):
     """Logs a successfully sent file with its filepath.
 
+
     Args:
         filepath (str): Path to the .wav file written by sagemic_local.
         - Also means the file has been sent by this script.

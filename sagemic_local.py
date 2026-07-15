@@ -16,7 +16,7 @@ from functools import partial  # for config argument in callback
 
 import numpy as np
 import sounddevice as sd
-from scipy.io.wavfile import write
+import soundfile as sf
 
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
@@ -91,10 +91,10 @@ def audio_callback(
 
                 # added to track complete files
                 final_filename = (
-                    f"{path}/{date_time}_{name}_{confidence:.2f}.wav"
+                    f"{path}/{date_time}_{name}_{confidence:.2f}.flac"
                 )
                 temp_filename = final_filename + ".tmp"
-                write(temp_filename, sample_rate, indata)
+                sf.write(temp_filename, indata, sample_rate, format='FLAC')
                 os.rename(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
