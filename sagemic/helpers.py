@@ -2,13 +2,84 @@
 """
 import os
 import sys
+import sqlite3
+import platform
+from importlib.metadata import version
 import sounddevice as sd
 import yaml
 import numpy as np
 
 
+def insert_database(base_path, filepath, species, confidence, timestamp, sample_rate, bitrate):
+    """
+    Inserts detection entries into the database.
+    Called by sagemic_local.
+
+    Args:
+        base_path (str): path to file  storing directory
+        filepath (str): path to detection audio file
+        sample_rate (integer): user defined in config file
+        bitrate (real): audio bitrate calculated in main
+
+    """
+
+    try:
+        with open("/sys/firmware/devicetree/base/model", "r", encoding="utf-8") as f:
+            hardware = f.read().strip('\x00')
+    except FileNotFoundError:
+        hardware = "Unknown"
+
+    firmware = platform.release().split('+')[0]
+
+    model = f"birdnetlib_v{version('birdnetlib')}"
+
+    db_path = os.path.join(base_path, "detections.db")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO detections "
+            "(sent, filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)"
+            "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)
+        )
+
+
+def create_database(base_path):
+    """
+    Checks if database exists, if not then creates detections database.
+
+    Called by sagemic_local and sagemic_scansend
+
+    Args:
+        base_path (str): path to file storing directory
+    """
+    db_path = os.path.join(base_path, "detections.db")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS detections (
+                sent INTEGER DEFAULT 0,
+                filepath TEXT PRIMARY KEY,
+                species TEXT,
+                confidence REAL,
+                timestamp TEXT,
+                hardware TEXT,
+                firmware TEXT,
+                model TEXT,
+                sample_rate INTEGER,
+                bitrate INTEGER
+            )
+        ''')
+
+        conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_unsent_files
+            ON detections(sent)
+        ''')
+
+
 def check_path(date, base_path):
     """Create new folder for date to store detections.
+
+    Called by sagemic_local.py.
 
     Args:
         date (str): Current date in YYYY-MM-DD.
@@ -27,6 +98,8 @@ def check_path(date, base_path):
 
 def inmp441_check(device_id, samplerate):
     """ Checks if inmp441 is connected and listening
+
+    Called by get_device_id
 
     Args:
         device_id (int): id of inmp441 found from get_device_id()
