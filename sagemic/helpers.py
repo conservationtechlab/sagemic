@@ -10,7 +10,7 @@ import yaml
 import numpy as np
 
 
-def insert_database(base_path, filepath, species, confidence, timestamp, sample_rate, bitrate):
+def insert_database(base_path, filepath, species, confidence, timestamp, coordinates, audio_device, sample_rate, bitrate):
     """
     Inserts detection entries into the database.
     Called by sagemic_local.
@@ -18,6 +18,11 @@ def insert_database(base_path, filepath, species, confidence, timestamp, sample_
     Args:
         base_path (str): path to file  storing directory
         filepath (str): path to detection audio file
+        species (str): species detected
+        confidence (float): inference confidence
+        timestamp (str): timestamp of detection
+        coordinates (str): coordinates in config file
+        audio_device (str): name of microphone used
         sample_rate (integer): user defined in config file
         bitrate (real): audio bitrate calculated in main
 
@@ -38,9 +43,9 @@ def insert_database(base_path, filepath, species, confidence, timestamp, sample_
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             "INSERT OR IGNORE INTO detections "
-            "(sent, filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)"
-            "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (filepath, species, confidence, timestamp, hardware, firmware, model, sample_rate, bitrate)
+            "(sent, filepath, species, confidence, timestamp, hardware, firmware, model, coordinates, audio_device, sample_rate, bitrate)"
+            "VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (filepath, species, confidence, timestamp, hardware, firmware, model, coordinates, audio_device, sample_rate, bitrate)
         )
 
 
@@ -65,6 +70,8 @@ def create_database(base_path):
                 hardware TEXT,
                 firmware TEXT,
                 model TEXT,
+                coordinates TEXT,
+                audio_device TEXT,
                 sample_rate INTEGER,
                 bitrate INTEGER
             )

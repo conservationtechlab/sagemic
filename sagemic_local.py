@@ -69,6 +69,10 @@ def audio_callback(
     dtype = config["SETTINGS"]["AUDIO_DTYPE"]
 
     bitrate = sample_rate * int(dtype[3:])
+    audio_device = config["SETTINGS"]["AUDIO_DEVICE"]
+    latitude = config["SETTINGS"]["LATITUDE"]
+    longitude = config["SETTINGS"]["LONGITUDE"]
+    coordinates = f"{latitude}, {longitude}"
 
     timestamp = datetime.now(local_tz)
     date = timestamp.strftime('%Y-%m-%d')
@@ -114,6 +118,8 @@ def audio_callback(
                     name,
                     round(confidence, 2),
                     date_time,
+                    coordinates,
+                    audio_device,
                     sample_rate,
                     bitrate
                 )
