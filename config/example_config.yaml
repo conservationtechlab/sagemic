@@ -5,7 +5,9 @@
 
 PATHS:
   BASE_PATH: "/path/to/directoryForSagemicFiles"
-  PATH_TO_CA_PEM: "/path/to/certificate"
+  PATH_TO_CA_PEM: "/path/to/rootCA"
+  PATH_TO_CRT: "/path/to/clientcrt"
+  PATH_TO_KEY: "/path/to/clientkey"
 
 SETTINGS:
   # Change  if outside of San Diego
@@ -32,6 +34,3 @@ MQTT:
   BASE_TOPIC: "topic_name"
   DEVICE: "device_name"
   BROKER: "<ip>"
-  SESSION_ID: "client_id"
-  USER: "username"
-  PASS: "password"
