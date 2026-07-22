@@ -24,51 +24,43 @@ from birdnetlib.analyzer import Analyzer
 from sagemic.helpers import check_path, get_config, get_device_id
 
 
-# callback defined here to use with config variables
-def audio_callback(
-    indata,
-    frames,
-    time_obj,
-    status,
-    recording_buffer,
-    config=None
-):
+def run_inference(indata, recording_buffer, config):
     """Process one audio block from the input stream and print detections.
 
-    Called by `sounddevice` for each incoming audio block. Flattens the
+    Called by `audio_callback()` for each audio block. Flattens the
     audio into a 1-D array, updates the global `recording_buffer`, runs
-    BirdNET analysis, and prints detections whose confidence exceeds
-    `CONFIDENCE_THRESHOLD`.
+    BirdNET analysis, prints detections whose confidence exceeds
+    `CONFIDENCE_THRESHOLD`, and saves audio files locally.
 
     Args:
         indata (numpy.ndarray): Audio block with shape (frames, channels).
             For this script, channels == 1.
-        frames (int): Number of frames in `indata`.
-        time_obj: Stream timing information provided by `sounddevice`
-            (implementation-specific; not used here).
-        status (sounddevice.CallbackFlags): Callback status flags; printed
-            if any non-OK condition is reported.
+        recording_buffer (RecordingBuffer instance):
+            Holds raw audio data/coordinates and handles analysis pipeline.
+        config (dict): Holds custom user configuration values for the script.
+
+    Returns:
+        (bool): True if there is a detection, False otherwise
 
     Side Effects:
         Updates the global `recording_buffer.buffer` and writes detection
         summaries to stdout.
-    """
-    if status:
-        print(status)
 
-    local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
-    base_path = config["PATHS"]["BASE_PATH"]
+        Saves audio clips with inferences into specified directory, by date.
+
+    """
     confidence_threshold = config["SETTINGS"]["CONFIDENCE_THRESHOLD"]
     sample_rate = config["SETTINGS"]["SAMPLERATE"]
 
+    local_tz = ZoneInfo(config["SETTINGS"]["LOCAL_TZ"])
     timestamp = datetime.now(local_tz)
+
+    base_path = config["PATHS"]["BASE_PATH"]
     date = timestamp.strftime('%Y-%m-%d')
     path = check_path(date, base_path)
 
-    # Flatten the data to a 1D array as expected by birdnetlib
     audio_data = indata.flatten()
 
-    # Add data to the buffer, specifying the samplerate here
     recording_buffer.buffer = audio_data
 
     print(f"\nProcessing audio chunk at {timestamp.strftime('%H:%M:%S')}...")
@@ -98,8 +90,132 @@ def audio_callback(
                 os.rename(
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
+        return True
+
+    print("No detections")
+    return False
+
+
+def audio_callback_raw(
+    indata,
+    frames,
+    time_obj,
+    status,
+    recording_buffer,
+    config=None
+):
+
+    """Audio callback for continuous inference.
+
+    Called by 'sounddevice' for each incoming audio block.
+    Calls run_inference to perform birdcall inference.
+
+    Args:
+        indata (numpy.ndarray): Audio block with shape (frames, channels).
+            For this script, channels == 1.
+        frames (int): Number of frames in `indata`.
+        time_obj: Stream timing information provided by `sounddevice`
+            (implementation-specific; not used here).
+        status (sounddevice.CallbackFlags): Callback status flags; printed
+            if any non-OK condition is reported.
+        recording_buffer (RecordingBuffer instance):
+            Holds audio data, configs, and coordinates.
+            Handles analysis pipeline.
+        config (dict): Holds custom user configuration values for the script.
+
+    """
+    if status:
+        print(status)
+
+    run_inference(indata, recording_buffer, config)
+
+
+def update_ambientrms(old_ambient, curr_rms, config, rms_dict):
+    """
+    Updates ambient noise floor based on given current RMS
+
+    Called by audio_callback_rms.
+
+    Args:
+        old_ambient (float): current ambient noise floor
+        curr_rms (float): rms of current audio block being processed
+    """
+    alpha = config["SETTINGS"]["EMA_ALPHA"]
+    rms_dict["ambient_rms"] = (alpha * curr_rms) + ((1 - alpha) * old_ambient)
+
+
+def audio_callback_rms(
+    indata,
+    frames,
+    time_obj,
+    status,
+    recording_buffer,
+    config=None,
+    rms_dict=None
+):
+
+    """Audio callback for AC RMS Pre-filtering
+
+    Called by 'sounddevice' for each incoming audio block.
+
+    If RMS of indata is above trigger threshold, process prev & curr chunks.
+    Then if there is no detection, use indata to update ambient.
+
+    If RMS of indata is below trigger thresh, use indata to update ambient.
+
+    Args:
+        indata (numpy.ndarray): Audio block with shape (frames, channels).
+            For this script, channels == 1.
+        frames (int): Number of frames in `indata`.
+        time_obj: Stream timing information provided by `sounddevice`
+            (implementation-specific; not used here).
+        status (sounddevice.CallbackFlags): Callback status flags; printed
+            if any non-OK condition is reported.
+        recording_buffer (RecordingBuffer instance):
+            Holds raw audio data, configs, and coordinates.
+            Handles analysis pipeline.
+        config (dict): Holds custom user configuration values for the script.
+        rms_dict (dict): Stores data and valus needed for RMS filtering.
+
+    Side Effects:
+        Updates global rms_dict values.
+    """
+
+    if status:
+        print(status)
+
+    current_rms = np.std(indata)
+
+    # initialize for first run
+    if rms_dict["ambient_rms"] == 0.0:
+        rms_dict["ambient_rms"] = current_rms
+        rms_dict["prev_block"] = indata.copy()
+        return
+
+    ambient_multiplier = config["SETTINGS"]["THRESH_MULTIPLIER"]
+    curr_ambientrms = rms_dict["ambient_rms"]
+    prev_processed = rms_dict["prev_processed"]
+
+    trigger_threshold = curr_ambientrms * ambient_multiplier
+
+    if current_rms > trigger_threshold:
+
+        if not prev_processed:
+            print("Processing pre-trigger recording")
+            run_inference(rms_dict["prev_block"], recording_buffer, config)
+
+        # if no detection, use to update ambient floor
+        if not run_inference(indata, recording_buffer, config):
+            update_ambientrms(curr_ambientrms, current_rms, config, rms_dict)
+
+        rms_dict["prev_processed"] = True
+
     else:
-        print("No detections")
+        print(f"RMS: {current_rms:.5f}, Trig Thresh: {trigger_threshold:.5f}")
+        update_ambientrms(curr_ambientrms, current_rms, config, rms_dict)
+        rms_dict["prev_processed"] = False
+
+    rms_dict["prev_block"] = indata.copy()
 
 
 def main():
@@ -137,11 +253,26 @@ def main():
         rate=sample_rate, buffer=audio_buffer
     )
 
-    arg_callback = partial(
-        audio_callback,
-        recording_buffer=recording_buffer,
-        config=config
-    )
+    if config["SETTINGS"]["RMS_FILTER"] == 1:
+
+        rms_dict = {
+            "ambient_rms": 0.0,
+            "prev_block": None,
+            "prev_processed": False
+        }
+
+        arg_callback = partial(
+            audio_callback_rms,
+            recording_buffer=recording_buffer,
+            config=config,
+            rms_dict=rms_dict
+        )
+    else:
+        arg_callback = partial(
+            audio_callback_raw,
+            recording_buffer=recording_buffer,
+            config=config
+        )
 
     # start listener
     print("Scanning for audio devices")

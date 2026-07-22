@@ -26,6 +26,21 @@ SETTINGS:
   AUDIO_DEVICE: "exact_name_from_arecord-l"
   AUDIO_DTYPE: "int16_or_int32"
 
+  # 1 for RMS Filtering of Audio Chunks, 0 for Continuous Recording
+  RMS_FILTER: 1
+
+  # Trigger threshold multiplier (typically 1.05-2.0)
+  # Multiply current ambient RMS by this value to set trigger threshold
+  # Example: 1.1 = Trigger inference if sound is 10% louder than backgroud noise.  
+  # Lower values = higher sensitivity, catches faint calls but more false triggers
+  THRESH_MULTIPLIER: 1.1
+
+  # Exponential Moving Average (EMA) smoothing factor for noise floor adaptation
+  # Typically 0.01 - 0.5, controls how fast ambient noise floor adapts to env. changes
+  # Example: 0.1 = New non-detection audio chunks contribute 10% to noise floor
+  # Lower values = slow adaptation (good for stable environments)
+  EMA_ALPHA: 0.1
+
 MQTT:
   # Default Port for MQTTS
   PORT: 8883
