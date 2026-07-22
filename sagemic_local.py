@@ -91,9 +91,9 @@ def run_inference(indata, recording_buffer, config):
                     temp_filename, final_filename
                 )  # to .wav for scansend when done
         return True
-    else:
-        print("No detections")
-        return False
+
+    print("No detections")
+    return False
 
 
 def audio_callback_raw(
@@ -158,10 +158,10 @@ def audio_callback_rms(
 
     Called by 'sounddevice' for each incoming audio block.
 
-    If the RMS of the indata is above the determined trigger threshold:
-        Runs inference on block before the trigger & current audio block.
-    If the RMS of the in data is below determined trigger threshold:
-        Dynamically adjusts ambient noise floor based on RMS of current block.
+    If RMS of indata is above trigger threshold, process prev & curr chunks.
+    Then if there is no detection, use indata to update ambient.
+
+    If RMS of indata is below trigger thresh, use indata to update ambient.
 
     Args:
         indata (numpy.ndarray): Audio block with shape (frames, channels).
@@ -176,9 +176,6 @@ def audio_callback_rms(
             Handles analysis pipeline.
         config (dict): Holds custom user configuration values for the script.
         rms_dict (dict): Stores data and valus needed for RMS filtering.
-            ambient_rms: Noise floor for silence or null noise.
-            prev_block: Buffer that holds data of previous block
-            prev_processed: Boolean, whether or not prev block was processed
 
     Side Effects:
         Updates global rms_dict values.

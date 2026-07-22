@@ -26,9 +26,17 @@ SETTINGS:
 
   # 1 for RMS Filtering of Audio Chunks, 0 for Continuous Recording
   RMS_FILTER: 1
-  # Ambient RMS multiplier to determine trigger threshold 
+
+  # Trigger threshold multiplier (typically 1.05-2.0)
+  # Multiply current ambient RMS by this value to set trigger threshold
+  # Example: 1.1 = Trigger inference if sound is 10% louder than backgroud noise.  
+  # Lower values = higher sensitivity, catches faint calls but more false triggers
   THRESH_MULTIPLIER: 1.1
-  # Determines how much new recordings affect ambient noise floor
+
+  # Exponential Moving Average (EMA) smoothing factor for noise floor adaptation
+  # Typically 0.01 - 0.5, controls how fast ambient noise floor adapts to env. changes
+  # Example: 0.1 = New non-detection audio chunks contribute 10% to noise floor
+  # Lower values = slow adaptation (good for stable environments)
   EMA_ALPHA: 0.1
 
 MQTT:
