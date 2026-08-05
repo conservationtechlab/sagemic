@@ -125,3 +125,42 @@ sudo ping -I wwan0 google.com
 *If configuring LTE while sshed in, you will need to re-ssh in after reboots, if this is annoying, use
 a monitor/keyboard if you have a desktop OS.
 **mmcli -L may not see board initially if modemmanager was installed after modem was plugged in. If this happens, reboot while modem is plugged in and try mmcli -L again.
+
+### LTE Watchdog
+To prevent our modems from spamming cell towers when network drops and ensure a graceful restart of the LTE and other network services...
+```
+sudo cp lte-watchdog.sh /usr/local/bin/lte-watchdog.sh
+sudo cp lte-watchdog.service /etc/systemd/system/lte-watchdog.service
+sudo chmod +x /usr/local/bin/lte-watchdog.sh
+
+sudo systemctl daemon-reload
+sudo systemctl enable lte-watchdog.service
+sudo systemctl start lte-watchdog.service
+```
+
+You can also ping every 5 minutes to ensure our carrier does not see us as inactive.
+```
+crontab -e
+```
+Go to the end of the file, and add:
+```
+*/5 * * * * /bin/ping -c 3 8.8.8.8 > /dev/null 2>&1
+```
+
+To permanently bind to T-Mobile (in the case of other carriers blacklisting)...
+```
+sudo systemctl stop lte-up.service
+sudo systemctl stop ModemManager
+
+sudo minicom -D /dev/ttyUSB2
+
+AT+COPS=2        					// detach modems from all towers
+AT+CRSM=214,28539,0,0,12,"FFFFFFFFFFFFFFFFFFFFFFFF"	// wipe blacklist
+AT+QCFG="band",0,3FFFFFFF,0,1				// see all towers
+AT+QICSGP=1,1,"america.bics","","",0
+AT+CGDCONT=1,"IP","america.bics"
+AT+CFUN=1
+AT+COPS=1,2,310260,7					// force connection to tmobile
+AT+QENG="servingcell"					// you should see 310  260, which is tmobile
+```
+
