@@ -7,12 +7,17 @@ Sagemic is an acoustic inference device that runs Birdnet actively using a USB m
 
 Current versions in development include LTE enabled and Wifi Halow versions where detections are sent to an MQTT Broker.
 
-Clone this repo on your Pi 4B (Full Desktop version of Trixie OS)
+Clone this repo on your Pi 4B (Full Desktop of Bookworm recommended for now, Trixie works with 1 additional step)
 
-In the repo, create a python environment. If using Trixie, Python3.11 needs to be
-installed because Tensorflow is not yet fully comptaible with Python3.13, which is what Trixie has. 
+In the repo, create a python environment.
+
+If using Trixie, Python3.11 needs to be
+installed because Tensorflow is not yet fully comptaible with Python3.13, which is what Trixie has.
 
 To create a non-replacing install of Python3.11, run these commands to build an alternate install of Python3.11 we can use in our venv.
+
+TRIXIE ONLY.
+If using Bookworm, skip to the step where we create the python environment.
 
 ```
 su - root
@@ -21,13 +26,21 @@ cd ~ && wget https://www.python.org/ftp/python/3.11.13/Python-3.11.13.tar.xz
 tar xvf Python-3.11.13.tar.xz && cd Python-3.11.13
 ./configure --enable-optimizations --with-ensurepip=install
 make -j $(nproc) && make altinstall
+```
 
+If using Trixie, and you did the above altinstall, use this command to create the env.
+```
 python3.11 -m venv .sagemic
+```
 
+If using Bookworm, you can just use python3
+```
+python3 -m venv .sagemic
+```
+
+```
 source .sagemic/bin/activate
-```
 
-```
 cd ~/sagemic
 pip install -e .
 sudo apt-get install libportaudio2
