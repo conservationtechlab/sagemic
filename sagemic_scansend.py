@@ -19,7 +19,7 @@ def write_log_file(filepath, log_file):
 
 
     Args:
-        filepath (str): Path to the .wav file written by sagemic_local.
+        filepath (str): Path to the .flac file written by sagemic_local.
         - Also means the file has been sent by this script.
 
         log_file (str): Path to the log file, defined in the config file.
@@ -80,18 +80,18 @@ def search_unsent(base_path, log_file):
     # search in relevant folders
     for folder in search_folders:
         folder_path = os.path.join(base_path, folder)
-        wavs = []
+        flacs = []
 
         for file in os.listdir(folder_path):
-            if file.endswith(".wav"):
-                wavs.append(file)
-        wav_files = sorted(wavs)
+            if file.endswith(".flac"):
+                flacs.append(file)
+        flac_files = sorted(flacs)
 
         if folder == start_folder and start_file:
-            index = bisect.bisect_right(wav_files, start_file)
-            wav_files = wav_files[index:]
+            index = bisect.bisect_right(flac_files, start_file)
+            flac_files = flac_files[index:]
 
-        for file in wav_files:
+        for file in flac_files:
             filepath = os.path.join(folder_path, file)
 
             if filepath not in sent_files:
@@ -156,18 +156,18 @@ def main():
     for filepath in files_to_send:
         # add print statements here if needed later
 
-        # get .wav filename from filepath
+        # get .flac filename from filepath
         filename = os.path.basename(filepath)
 
         # make dynamic topic
         dynamic_topic = f"{topic}/{filename}"
 
         try:
-            with open(filepath, "rb") as wav_file:  # open in raw binary mode
-                wav_data = wav_file.read()
+            with open(filepath, "rb") as flac_file:  # open in raw binary mode
+                flac_data = flac_file.read()
                 result = client.publish(
                     dynamic_topic,
-                    bytearray(wav_data),
+                    bytearray(flac_data),
                     qos=1
                 )
                 result.wait_for_publish()

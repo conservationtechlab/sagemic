@@ -97,7 +97,7 @@ def audio_callback(
                 sf.write(temp_filename, indata, sample_rate, format='FLAC')
                 os.rename(
                     temp_filename, final_filename
-                )  # to .wav for scansend when done
+                )  # to .flac for scansend when done
     else:
         print("No detections")
 
