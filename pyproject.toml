@@ -7,7 +7,8 @@ dependencies = [
     "sounddevice",
     "scipy",
     "librosa",
-    "tensorflow"
+    "tensorflow",
+    "pyyaml"
 ]
 
 [tool.setuptools]
