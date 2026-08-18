@@ -43,124 +43,49 @@ You can fix this by stopping or disabling services like in step 3 or 6.
 
 
 ## LTE Setup
-If using the Sixfab LTE hat, you will need to use the lte setup systemd service
-file so that it configures the connection properly on each reboot. 
-
-Prior to that, you will need to conduct a 1 time setup step to configure
-the proper APN in the modem hardware.
+If using the Sixfab LTE hat, you will need to create a NetworkManager profile with
+some specific settings, and it should manage the connection for you.
 
 If using the recommended EIoT Club SIM within the US, the APN will be "america.bics"
- 
-Move the shell script and move the systemd service file.
-```
-cd ~/sagemic/systemd
-sudo cp lte-up.sh /usr/local/bin/lte-up.sh
-chmod +x /usr/local/bin/lte-up.sh
-sudo cp lte-up.service /etc/systemd/system
-```
 
-Install modem packages and set up the APN manually in the modem, only needs to be done once.
+Install modem packages:
 ```
 sudo apt install modemmanager libqmi-utils minicom
-mmcli -L
-```
-You are looking for the number after ../Modem/#. That # is the modem ID we will use later. 
-It will probably be 0. But we should check for it because there's a chance it is 1, 2...
-
-```
-mmcli -m <id>
-```
-You should see a few /dev/ttyUSB# listed. Look for one that says (at). There may be multiple. Pick one for now.
-
-
-Replace that number in the command below where the # is. 
-```
-sudo minicom -D /dev/ttyUSB#
 ```
 
-You will now be in an AT interface, interfacing directly with the modem. Commands look a little different.
-
-
-To see if you chose the correct USB# port, try the following command.
+Configure an lte device in NetworkManager, change 'america.bics' using a SIM with a different APN:
 ```
-AT
-```
-
-If you see an 'OK' continue. If not, exit this and try the other USB# that said (at).
-
-```
-AT+CGDCONT=1,"IP","america.bics"
+sudo nmcli connection add \
+    type gsm \
+    ifname "*" \
+    con-name lte \
+    apn america.bics
 ```
 
-Verify the APN took with:
+Ensure it will automatically reconnect, and pull it up:
 ```
-AT+CGDCONT?
-```
-
-You should see the APN we just set.
-
-To exit minicom: Ctrl + A, X
-
-```
-reboot
+sudo nmcli connection modify lte connection.autoconnect yes
+sudo nmcli connection up lte
 ```
 
-Now that your modem knows the correct APN, you can enable the lte-setup service
-and reboot one more time.
-
+Check that is connected properly with:
 ```
-sudo systemctl daemon-reload
-sudo systemctl enable lte-up.service
-sudo systemctl start lte-up.service
-reboot
+nmcli device status
 ```
-
-When you are once again inside the pi, you should be able to ping google using
+You should be able to ping google using
 the wwan0 (LTE) connection. If this pings correctly, congrats, you set up LTE.
 
 ```
 sudo ping -I wwan0 google.com
 ```
 
+You can check logs if something goes awry using:
+
+```
+journalctl -u NetworkManager
+journalctl -u ModemManager
+```
+
 *If configuring LTE while sshed in, you will need to re-ssh in after reboots, if this is annoying, use
 a monitor/keyboard if you have a desktop OS.
 **mmcli -L may not see board initially if modemmanager was installed after modem was plugged in. If this happens, reboot while modem is plugged in and try mmcli -L again.
-
-### LTE Watchdog
-To prevent our modems from spamming cell towers when network drops and ensure a graceful restart of the LTE and other network services...
-```
-sudo cp lte-watchdog.sh /usr/local/bin/lte-watchdog.sh
-sudo cp lte-watchdog.service /etc/systemd/system/lte-watchdog.service
-sudo chmod +x /usr/local/bin/lte-watchdog.sh
-
-sudo systemctl daemon-reload
-sudo systemctl enable lte-watchdog.service
-sudo systemctl start lte-watchdog.service
-```
-
-You can also ping every 5 minutes to ensure our carrier does not see us as inactive.
-```
-crontab -e
-```
-Go to the end of the file, and add:
-```
-*/5 * * * * /bin/ping -c 3 8.8.8.8 > /dev/null 2>&1
-```
-
-To permanently bind to T-Mobile (in the case of other carriers blacklisting)...
-```
-sudo systemctl stop lte-up.service
-sudo systemctl stop ModemManager
-
-sudo minicom -D /dev/ttyUSB2
-
-AT+COPS=2        					// detach modems from all towers
-AT+CRSM=214,28539,0,0,12,"FFFFFFFFFFFFFFFFFFFFFFFF"	// wipe blacklist
-AT+QCFG="band",0,3FFFFFFF,0,1				// see all towers
-AT+QICSGP=1,1,"america.bics","","",0
-AT+CGDCONT=1,"IP","america.bics"
-AT+CFUN=1
-AT+COPS=1,2,310260,7					// force connection to tmobile
-AT+QENG="servingcell"					// you should see 310  260, which is tmobile
-```
-
