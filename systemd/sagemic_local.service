@@ -1,0 +1,16 @@
+[Unit]
+Description=SageMic Local Audio Listener
+After=network.target sound.target
+
+[Service] 
+Type=simple
+User= # ADD HERE!
+
+ExecStart= # /path/to/venv/bin/python /path/to/sagemic_local.py --config /path/to/config.yaml
+WorkingDirectory= # /path/to/repo
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
