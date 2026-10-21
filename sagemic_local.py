@@ -7,6 +7,7 @@ window size and detections above a confidence threshold are printed.
 
 """
 
+import logging
 import os  # added for scansend service
 import time
 import argparse
@@ -21,6 +22,8 @@ import soundfile as sf
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
+from sagemic import __version__
+from sagemic.logging import setup_logger
 from sagemic.helpers import check_path, get_config, get_device_id
 
 
@@ -78,7 +81,7 @@ def audio_callback(
     detections = recording_buffer.detections
 
     if detections:
-        print("At least one detection.")
+        log.debug("At least one detection.")
         for detection in detections:
             if detection["confidence"] > confidence_threshold:
                 name = detection["scientific_name"].replace(" ", "_").lower()
@@ -87,7 +90,7 @@ def audio_callback(
                 # new for filenames w/ data + time
                 date_time = timestamp.strftime("%Y-%m-%d_%H-%M-%S")
 
-                print(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
+                log.info(f"** {name} Detected w/ (Confidence: {confidence:.2f})")
 
                 # added to track complete files
                 final_filename = (
@@ -99,7 +102,7 @@ def audio_callback(
                     temp_filename, final_filename
                 )  # to .flac for scansend when done
     else:
-        print("No detections")
+        log.debug("No detections.")
 
 
 def main():
@@ -116,6 +119,12 @@ def main():
     args = parser.parse_args()
 
     config = get_config(args.config)
+
+    device_name = config["MQTT"]["DEVICE"]
+
+    log = setup_logger(logging.INFO, device_name)
+
+    log.info('SageMic v%s is starting up', __version__)
 
     # audio variables
     latitude = config["SETTINGS"]["LATITUDE"]
@@ -144,13 +153,13 @@ def main():
     )
 
     # start listener
-    print("Scanning for audio devices")
+    log.info("Scanning for audio devices")
 
     sd.default.device = get_device_id(audio_device, sample_rate)
 
-    print("\nListening for birds...")
-    print(f"Input device: {sd.query_devices(sd.default.device)['name']}")
-    print("Press Ctrl+C to stop.")
+    log.info("\nListening for birds...")
+    log.debug(f"Input device: {sd.query_devices(sd.default.device)['name']}")
+    log.info("Press Ctrl+C to stop.")
 
     try:
         with sd.InputStream(
