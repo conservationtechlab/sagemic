@@ -31,7 +31,8 @@ def audio_callback(
     time_obj,
     status,
     recording_buffer,
-    config=None
+    config=None,
+    custom_model=None
 ):
     """Process one audio block from the input stream and print detections.
 
@@ -74,8 +75,20 @@ def audio_callback(
     print(f"\nProcessing audio chunk at {timestamp.strftime('%H:%M:%S')}...")
 
     # Analyze the buffer and get detections
-    recording_buffer.analyze()
-    detections = recording_buffer.detections
+    if custom_model is None:
+        recording_buffer.analyze()
+        detections = recording_buffer.detections
+    else:  # custom model: BirdNET embeddings -> SVM
+        confidence_threshold = config["SETTINGS"].get("CUSTOM_CONF", 0.0)
+        recording_buffer.extract_embeddings()
+        X = np.array([e["embeddings"] for e in recording_buffer.embeddings])
+        scores = custom_model.decision_function(X).max(axis=0)  # best 3 s window per class
+        best = int(np.argmax(scores))
+        labels = config["SETTINGS"]["CUSTOM_LABELS"]
+        detections = [{"scientific_name": labels[int(custom_model.classes_[best])],
+                       "confidence": float(scores[best])}]
+        if detections[0]["scientific_name"] == "noise":
+            detections = []  # noise wins -> report "No detections"
 
     if detections:
         print("At least one detection.")
@@ -132,6 +145,17 @@ def main():
 
     analyzer = Analyzer()
 
+    # custom model: MODEL_TYPE = "birdnet" (default) or "custom"
+    custom_model = None
+    if config["SETTINGS"].get("MODEL_TYPE", "birdnet") == "custom":
+        import joblib
+        custom_model = joblib.load(config["PATHS"]["CUSTOM_MODEL_PATH"])
+        print(f"Using custom model: {config['PATHS']['CUSTOM_MODEL_PATH']}")
+        # birdnetlib frees the embedding layer; reload interpreter keeping all tensors
+        analyzer.interpreter = type(analyzer.interpreter)(
+            model_path=analyzer.model_path, num_threads=1, experimental_preserve_all_tensors=True)
+        analyzer.interpreter.allocate_tensors()
+
     recording_buffer = RecordingBuffer(
         analyzer=analyzer, lat=latitude, lon=longitude,
         rate=sample_rate, buffer=audio_buffer
@@ -140,7 +164,8 @@ def main():
     arg_callback = partial(
         audio_callback,
         recording_buffer=recording_buffer,
-        config=config
+        config=config,
+        custom_model=custom_model
     )
 
     # start listener
