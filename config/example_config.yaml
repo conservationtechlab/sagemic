@@ -9,6 +9,8 @@ PATHS:
   PATH_TO_CRT: "/path/to/clientcrt"
   PATH_TO_KEY: "/path/to/clientkey"
 
+  CUSTOM_MODEL_PATH: "/path/to/custom/model.joblib"
+
 SETTINGS:
   # Change  if outside of San Diego
   LATITUDE: 32.7157
@@ -25,6 +27,13 @@ SETTINGS:
   # inmp441: snd_rpi_googlevoicehat_soundcar
   AUDIO_DEVICE: "exact_name_from_arecord-l"
   AUDIO_DTYPE: "int16_or_int32"
+
+  #or "birdnet" for default birdnet model
+  MODEL_TYPE: "custom"
+  CUSTOM_CONF: 0.0
+  # The order should match the label mapping (0, 1, ...)
+  CUSTOM_LABELS: [haemorhous_mexicanus, sturnella_neglecta, ex...]
+
 
 MQTT:
   # Default Port for MQTTS
