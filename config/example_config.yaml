@@ -30,6 +30,7 @@ SETTINGS:
 
   #or "birdnet" for default birdnet model
   MODEL_TYPE: "custom"
+  # Can do 1 conf for all, or a list for each class [1.0, 0.5, ex...]
   CUSTOM_CONF: 0.0
   # The order should match the label mapping (0, 1, ...)
   CUSTOM_LABELS: [haemorhous_mexicanus, sturnella_neglecta, ex...]
