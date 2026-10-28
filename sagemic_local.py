@@ -79,11 +79,12 @@ def audio_callback(
         recording_buffer.analyze()
         detections = recording_buffer.detections
     else:  # custom model: BirdNET embeddings -> SVM
-        confidence_threshold = config["SETTINGS"].get("CUSTOM_CONF", 0.0)
         recording_buffer.extract_embeddings()
         X = np.array([e["embeddings"] for e in recording_buffer.embeddings])
         scores = custom_model.decision_function(X).max(axis=0)  # best 3 s window per class
         best = int(np.argmax(scores))
+        thr = config["SETTINGS"].get("CUSTOM_CONF", 0.0)
+        confidence_threshold = thr[int(custom_model.classes_[best])] if isinstance(thr, list) else thr
         labels = config["SETTINGS"]["CUSTOM_LABELS"]
         detections = [{"scientific_name": labels[int(custom_model.classes_[best])],
                        "confidence": float(scores[best])}]
