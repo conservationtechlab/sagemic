@@ -1,7 +1,14 @@
 """replay_sagemic.py: feed WAV files through Katie's real sagemic audio_callback, 3 s at a time.
 
-  python replay_sagemic.py --sagemic ~/work/sdzwa/sagemic --model sagemic_head_C.joblib \
+  # from the repo root, using the real config (labels, model path, threshold):
+  python custom_head/scripts/replay_sagemic.py --config config/demo_custom_head.yaml path/to/*.wav
+
+  # or without a config:
+  python replay_sagemic.py --sagemic ~/work/sdzwa/sagemic --model sagemic_head.joblib \
       ../data/toys/session_1/stellers_jay/*.wav
+
+  --use-base-path --realtime  : write clips into the config's BASE_PATH at live pace (one block
+                                every 3 s), e.g. to drive the lightbox from recordings. Off by default.
 
 It imports audio_callback from YOUR CHECKOUT of the sagemic branch (not a copy of its logic),
 sets it up exactly as sagemic_local.main() does (BirdNET analyzer with all tensors kept,
@@ -24,10 +31,13 @@ COMMON = dict(zip(LABELS, ["house_finch", "western_meadowlark", "stellers_jay", 
 
 ap = argparse.ArgumentParser()
 ap.add_argument("wavs", nargs="+")
-ap.add_argument("--sagemic", required=True, help="path to your checkout of the sagemic branch")
-ap.add_argument("--model", required=True)
-ap.add_argument("--custom-conf", type=float, default=0.0)
-ap.add_argument("--dtype", default="int32", choices=["int16", "int32", "float32"],
+ap.add_argument("--sagemic", default=".", help="path to your checkout of the sagemic branch (default: here)")
+ap.add_argument("--config", default="", help="sagemic config YAML: labels, model path, CUSTOM_CONF come from it")
+ap.add_argument("--model", default="", help="model .joblib (taken from --config if not given)")
+ap.add_argument("--custom-conf", type=float, default=None, help="default: from --config, else 0.0")
+ap.add_argument("--use-base-path", action="store_true", help="write clips to the config's BASE_PATH")
+ap.add_argument("--realtime", action="store_true", help="pace blocks 3 s apart, like the live stream")
+ap.add_argument("--dtype", default=None, choices=["int16", "int32", "float32"],
                 help="sample format handed to sagemic (the live stream uses AUDIO_DTYPE)")
 ap.add_argument("--dataset", default="", help="dataset.parquet, to compare with your labels")
 ap.add_argument("--out", default="replay_results.csv")
@@ -45,21 +55,52 @@ from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
 SR = 48000
-clip_dir = tempfile.mkdtemp(prefix="sagemic_replay_")
-config = {"PATHS": {"BASE_PATH": clip_dir},
-          "SETTINGS": {"LOCAL_TZ": "America/Los_Angeles", "CONFIDENCE_THRESHOLD": 0.1,
-                       "SAMPLERATE": SR, "MODEL_TYPE": "custom",
-                       "CUSTOM_CONF": args.custom_conf, "CUSTOM_LABELS": LABELS}}
+if args.config:
+    import yaml
+    with open(args.config) as f:
+        config = yaml.safe_load(f)
+    st = config["SETTINGS"]
+    if st.get("MODEL_TYPE") != "custom":
+        sys.exit(f"{args.config}: MODEL_TYPE is not 'custom'")
+    if int(st.get("SAMPLERATE", SR)) != SR or int(st.get("BLOCK_DURATION", 3)) != 3:
+        sys.exit(f"{args.config}: the model needs SAMPLERATE 48000 and BLOCK_DURATION 3")
+    model_path = args.model or config["PATHS"]["CUSTOM_MODEL_PATH"]
+    if args.custom_conf is not None:
+        st["CUSTOM_CONF"] = args.custom_conf
+    dtype = args.dtype or (st.get("AUDIO_DTYPE") if st.get("AUDIO_DTYPE") in ("int16", "int32") else "int32")
+    print(f"config {args.config}: model={model_path} CUSTOM_CONF={st.get('CUSTOM_CONF', 0.0)} "
+          f"labels={st['CUSTOM_LABELS']} dtype={dtype}")
+else:
+    if not args.model:
+        sys.exit("give --config or --model")
+    model_path = args.model
+    dtype = args.dtype or "int32"
+    config = {"PATHS": {}, "SETTINGS": {"LOCAL_TZ": "America/Los_Angeles", "CONFIDENCE_THRESHOLD": 0.1,
+                                        "SAMPLERATE": SR, "MODEL_TYPE": "custom",
+                                        "CUSTOM_CONF": 0.0 if args.custom_conf is None else args.custom_conf,
+                                        "CUSTOM_LABELS": LABELS}}
+if args.use_base_path:
+    if not config["PATHS"].get("BASE_PATH"):
+        sys.exit("--use-base-path needs a --config with PATHS.BASE_PATH")
+    clip_dir = config["PATHS"]["BASE_PATH"]
+    print(f"writing detection clips to BASE_PATH: {clip_dir}")
+else:
+    clip_dir = tempfile.mkdtemp(prefix="sagemic_replay_")
+    config["PATHS"]["BASE_PATH"] = clip_dir
 
 # --- same setup as sagemic_local.main() -------------------------------------------------------
 with contextlib.redirect_stdout(io.StringIO()):
     analyzer = Analyzer()
-    custom_model = joblib.load(args.model)
+    custom_model = joblib.load(model_path)
     analyzer.interpreter = type(analyzer.interpreter)(
         model_path=analyzer.model_path, num_threads=1, experimental_preserve_all_tensors=True)
     analyzer.interpreter.allocate_tensors()
     rb = RecordingBuffer(analyzer=analyzer, lat=32.7157, lon=-117.1611, rate=SR,
                          buffer=np.zeros(3 * SR, dtype="float32"))
+
+n_labels = len(config["SETTINGS"]["CUSTOM_LABELS"])
+if n_labels != len(custom_model.classes_):
+    sys.exit(f"CUSTOM_LABELS has {n_labels} names but the model has {len(custom_model.classes_)} classes")
 
 DET = re.compile(r"\*\* (\S+) Detected w/ \(Confidence: (-?[\d.]+)\)")
 rows = []
@@ -68,7 +109,7 @@ for wav in args.wavs:
     if info.samplerate != SR:
         print(f"skip {wav}: {info.samplerate} Hz (sagemic runs at {SR} Hz)")
         continue
-    y, _ = sf.read(wav, dtype=args.dtype, always_2d=True)
+    y, _ = sf.read(wav, dtype=dtype, always_2d=True)
     y = y[:, :1]                                  # mono, shape (frames, 1) like sounddevice
     for k in range(len(y) // (3 * SR)):          # whole 3 s blocks, aligned at 0 like embed.py
         block = np.ascontiguousarray(y[k * 3 * SR:(k + 1) * 3 * SR])
@@ -78,6 +119,8 @@ for wav in args.wavs:
             sagemic_local.audio_callback(block, len(block), None, None,
                                          recording_buffer=rb, config=config, custom_model=custom_model)
         ms = (time.perf_counter() - t0) * 1000
+        if args.realtime:
+            time.sleep(max(0.0, 3.0 - ms / 1000))
         m = DET.search(out.getvalue())
         rows.append({"file": wav, "start_s": float(k * 3), "reported": m.group(1) if m else "",
                      "confidence": float(m.group(2)) if m else np.nan, "ms": round(ms, 1)})

@@ -4,16 +4,18 @@
   python train_eval.py                         # linear + RBF (RBF is slower; maybe 15-30 min)
 
 CANDIDATES (every combination of):
-  recipe     A = field recordings only: Xeno-canto birds + noise (Freesound train + ambient room)
-             B = A + your toy-alone recordings (call windows + room tone between presses)
-             C = B + Freesound music (training split) as extra noise examples
+  recipe     field            = field recordings only: Xeno-canto birds + noise
+                                (Freesound crowd train split + ambient room)
+             field_toys       = field + the toy-alone lab recordings (call windows + room tone)
+             field_toys_music = field_toys + Freesound music (training split) as extra noise
+                                (the recipe of the shipped model)
   threshold  which Xeno-canto windows count as the bird (stock BirdNET own score >= 0.3 / 0.7)
   kernel     linear or RBF SVM
   Classes: the 4 species + "noise". Windows labeled review / partial are never used.
 
 EXAMS (every candidate takes all of them):
   1. Toy calls   : does it name the right bird for toy-alone call windows, and say "noise" for
-                   the room tone between presses?  For recipe B this is done fairly: the toy
+                   the room tone between presses?  For recipes with toys this is done fairly: the toy
                    files are split into --toy-folds groups; each group is tested by a head
                    trained WITHOUT those files (like the sweep did with recordings).
                    Caveat: all toy files are from one session, so this is optimistic.
@@ -47,7 +49,8 @@ CLASSES = SPECIES + ["noise"]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="../embeddings/dataset.parquet")
-ap.add_argument("--recipes", nargs="+", default=["A", "B", "C"])
+RECIPES = ["field", "field_toys", "field_toys_music"]
+ap.add_argument("--recipes", nargs="+", default=RECIPES, choices=RECIPES)
 ap.add_argument("--thresholds", type=float, nargs="+", default=[0.3, 0.7])
 ap.add_argument("--kernels", nargs="+", default=["linear", "rbf"])
 ap.add_argument("--cap", type=int, default=3000, help="max Xeno-canto training windows per species (speed)")
@@ -113,7 +116,7 @@ def predict_s(m, idx):
     k = d.argmax(axis=1)
     return m.classes_[k], d[np.arange(len(k)), k]
 
-print(f"music training windows (recipe C only): {len(music_train)}")
+print(f"music training windows (field_toys_music only): {len(music_train)}")
 print(f"pools: XC train recordings={len(np.unique(df.source_id.to_numpy()[xc_train]))}, "
       f"XC exam windows={len(xc_exam)}, noise train={len(noise_train)}, toy windows={len(toy)} "
       f"({', '.join(f'{SHORT.get(c, c)}={int((lab[toy] == c).sum())}' for c in CLASSES)})")
@@ -134,15 +137,15 @@ for thr in args.thresholds:
             name = f"{recipe} thr{thr} {kernel}"
             t0 = time.time()
             base = np.concatenate([xc_pool(thr), noise_train])
-            if recipe == "C":
+            if recipe == "field_toys_music":
                 base = np.concatenate([base, music_train])
-            full_idx = np.concatenate([base, toy]) if recipe in ("B", "C") else base
+            full_idx = np.concatenate([base, toy]) if recipe != "field" else base
             full = fit(full_idx, kernel)
 
             # exam 1: toys
             toy_pred = np.empty(len(toy), dtype=object)
             toy_score = np.full(len(toy), np.nan)
-            if recipe == "A":
+            if recipe == "field":
                 toy_pred[:], toy_score[:] = predict_s(full, toy)
             else:
                 gkf = GroupKFold(n_splits=args.toy_folds)

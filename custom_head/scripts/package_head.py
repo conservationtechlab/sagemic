@@ -1,10 +1,10 @@
 """package_head.py: train the chosen head once and save it in the format Katie's sagemic expects.
 
-  python package_head.py --data ../embeddings/dataset.parquet --out sagemic_head_C.joblib \
+  python package_head.py --data ../embeddings/dataset.parquet --out sagemic_head.joblib \
                          --check ../results/train_eval_predictions.parquet
 
-What it builds (recipe C, threshold 0.7, linear SVM: the model the exams scored):
-  * Same training data as train_eval.py's "full" C model: Xeno-canto windows with stock BirdNET
+What it builds (recipe field_toys_music, threshold 0.7, linear SVM: the model the exams scored):
+  * Same training data as train_eval.py's "full" field_toys_music model: Xeno-canto windows with stock BirdNET
     own score >= 0.7 from the 80% training recordings, Freesound train noise, 2 of 3 ambient
     files, training-split music, and all toy-alone call/room-tone windows.
   * Labels are the integers 0-4 in CUSTOM_LABELS order (Katie's code does labels[int(classes_[i])]).
@@ -35,7 +35,7 @@ SPECIES = [c for c, _ in CLASSES[:4]]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="../embeddings/dataset.parquet")
-ap.add_argument("--out", default="sagemic_head_C.joblib")
+ap.add_argument("--out", default="sagemic_head.joblib")
 ap.add_argument("--threshold", type=float, default=0.7)
 ap.add_argument("--cap", type=int, default=3000, help="must match train_eval.py (default 3000)")
 ap.add_argument("--C", type=float, default=1.0)
@@ -80,10 +80,10 @@ m = joblib.load(args.out)
 assert list(m.classes_) == [0, 1, 2, 3, 4], m.classes_
 if args.check:
     pp = pd.read_parquet(args.check)
-    cand = f"C thr{args.threshold} linear"
+    cand = f"field_toys_music thr{args.threshold} linear"
     ref = pp[(pp.candidate == cand) & (pp.exam != "toy")]  # toy exam used per-fold models, not the full one
     if ref.empty:
-        sys.exit(f"no '{cand}' rows in {args.check}; re-run train_eval.py with recipe C at this threshold")
+        sys.exit(f"no '{cand}' rows in {args.check}; re-run train_eval.py with recipe field_toys_music at this threshold")
     d = m.decision_function(X[ref.row.to_numpy()])
     best = d.argmax(axis=1)
     pred = np.array([CLASSES[m.classes_[b]][0] for b in best])
