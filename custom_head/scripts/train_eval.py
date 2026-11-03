@@ -9,6 +9,8 @@ CANDIDATES (every combination of):
              field_toys       = field + the toy-alone lab recordings (call windows + room tone)
              field_toys_music = field_toys + Freesound music (training split) as extra noise
                                 (the recipe of the shipped model)
+             field_toys_music_mix = field_toys_music + synthetic toy-under-crowd/music mixes
+                                (training-split noise only; needs --mixes from mix_toys.py)
   threshold  which Xeno-canto windows count as the bird (stock BirdNET own score >= 0.3 / 0.7)
   kernel     linear or RBF SVM
   Classes: the 4 species + "noise". Windows labeled review / partial are never used.
@@ -49,8 +51,12 @@ CLASSES = SPECIES + ["noise"]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--data", default="../embeddings/dataset.parquet")
-RECIPES = ["field", "field_toys", "field_toys_music"]
-ap.add_argument("--recipes", nargs="+", default=RECIPES, choices=RECIPES)
+RECIPES = ["field", "field_toys", "field_toys_music", "field_toys_music_mix"]
+ap.add_argument("--recipes", nargs="+", default=None, choices=RECIPES,
+                help="default: all (the _mix recipe only when --mixes is given)")
+ap.add_argument("--mixes", default="", help="mixes.parquet from mix_toys.py (adds the mix recipe + exam)")
+ap.add_argument("--mix-min-snr", type=float, default=None,
+                help="train only on mixes with toy level >= this many dB vs noise (exam keeps all ratios)")
 ap.add_argument("--thresholds", type=float, nargs="+", default=[0.3, 0.7])
 ap.add_argument("--kernels", nargs="+", default=["linear", "rbf"])
 ap.add_argument("--cap", type=int, default=3000, help="max Xeno-canto training windows per species (speed)")
@@ -58,8 +64,17 @@ ap.add_argument("--toy-folds", type=int, default=4)
 ap.add_argument("--C", type=float, default=1.0)
 ap.add_argument("--out", default="../results/train_eval.csv")
 args = ap.parse_args()
+if args.recipes is None:
+    args.recipes = RECIPES if args.mixes else RECIPES[:3]
+if "field_toys_music_mix" in args.recipes and not args.mixes:
+    ap.error("recipe field_toys_music_mix needs --mixes")
 
 df = pd.read_parquet(args.data)
+if args.mixes:  # appended AFTER the dataset rows, so dataset row numbers are unchanged
+    mx = pd.read_parquet(args.mixes)
+    df = pd.concat([df, mx], ignore_index=True, join="outer")
+    for col, fill in [("label_src", ""), ("other_dist", ""), ("own", 0.0), ("source_id", "")]:
+        df[col] = df[col].fillna(fill)
 E = [c for c in df.columns if c.startswith("e") and c[1:].isdigit()]
 X = df[E].to_numpy(np.float32)
 lab, role, kind, set_ = df.label.to_numpy(), df.role.to_numpy(), df.kind.to_numpy(), df.set.to_numpy()
@@ -80,6 +95,11 @@ noise_train = np.where(np.isin(set_, ["noise_train", "ambient"]) & (lab == "nois
                        & (df.file.to_numpy() != amb_exam_file))[0]
 toy = np.where((kind == "toy_alone") & np.isin(lab, CLASSES) & (role == "trainable"))[0]
 music_train = np.where((set_ == "music_train") & (lab == "noise"))[0]
+mix_train = np.where(set_ == "mix_train")[0]
+if args.mix_min_snr is not None and len(mix_train):
+    mix_train = mix_train[df.snr_db.to_numpy()[mix_train] >= args.mix_min_snr]
+mix_test = np.where((set_ == "mix_test") & np.isin(lab, SPECIES))[0]
+files = df.file.to_numpy()
 noise_exams = {"empty_room": amb_exam,
                "freesound_test": np.where(set_ == "noise_test")[0],
                "crowd_playback": np.where((kind == "crowd_only") & (lab == "noise"))[0],
@@ -116,7 +136,11 @@ def predict_s(m, idx):
     k = d.argmax(axis=1)
     return m.classes_[k], d[np.arange(len(k)), k]
 
-print(f"music training windows (field_toys_music only): {len(music_train)}")
+print(f"music training windows (field_toys_music*): {len(music_train)}")
+if args.mixes:
+    print(f"synthetic mixes: {len(mix_train)} training (field_toys_music_mix only"
+          + (f", ratios >= {args.mix_min_snr:g} dB" if args.mix_min_snr is not None else "")
+          + f"), {len(mix_test)} exam (all ratios)")
 print(f"pools: XC train recordings={len(np.unique(df.source_id.to_numpy()[xc_train]))}, "
       f"XC exam windows={len(xc_exam)}, noise train={len(noise_train)}, toy windows={len(toy)} "
       f"({', '.join(f'{SHORT.get(c, c)}={int((lab[toy] == c).sum())}' for c in CLASSES)})")
@@ -137,21 +161,41 @@ for thr in args.thresholds:
             name = f"{recipe} thr{thr} {kernel}"
             t0 = time.time()
             base = np.concatenate([xc_pool(thr), noise_train])
-            if recipe == "field_toys_music":
+            if recipe in ("field_toys_music", "field_toys_music_mix"):
                 base = np.concatenate([base, music_train])
+            uses_mix = recipe == "field_toys_music_mix"
             full_idx = np.concatenate([base, toy]) if recipe != "field" else base
+            if uses_mix:
+                full_idx = np.concatenate([full_idx, mix_train])
             full = fit(full_idx, kernel)
 
             # exam 1: toys
             toy_pred = np.empty(len(toy), dtype=object)
             toy_score = np.full(len(toy), np.nan)
+            # exam 1b (if --mixes): synthetic toy-under-noise windows, scored the same fair way:
+            # a mix is judged by a head that never trained on its toy file (clean or mixed).
+            mix_pred = np.empty(len(mix_test), dtype=object)
+            mix_score = np.full(len(mix_test), np.nan)
             if recipe == "field":
                 toy_pred[:], toy_score[:] = predict_s(full, toy)
+                if len(mix_test):
+                    mix_pred[:], mix_score[:] = predict_s(full, mix_test)
             else:
                 gkf = GroupKFold(n_splits=args.toy_folds)
-                for k_tr, k_te in gkf.split(toy, groups=df.file.to_numpy()[toy]):
-                    m = fit(np.concatenate([base, toy[k_tr]]), kernel)
+                for k_tr, k_te in gkf.split(toy, groups=files[toy]):
+                    tr_files = set(files[toy[k_tr]])
+                    te_files = set(files[toy[k_te]])
+                    fold_idx = np.concatenate([base, toy[k_tr]])
+                    if uses_mix:
+                        fold_idx = np.concatenate([fold_idx, mix_train[np.isin(files[mix_train], list(tr_files))]])
+                    m = fit(fold_idx, kernel)
                     toy_pred[k_te], toy_score[k_te] = predict_s(m, toy[k_te])
+                    sel = np.isin(files[mix_test], list(te_files))
+                    if sel.any():
+                        mix_pred[sel], mix_score[sel] = predict_s(m, mix_test[sel])
+            if len(mix_test):
+                preds.append(pd.DataFrame({"candidate": name, "exam": "mix", "row": mix_test,
+                                           "truth": lab[mix_test], "pred": mix_pred, "score": mix_score}))
             row = {"candidate": name, "recipe": recipe, "threshold": thr, "kernel": kernel,
                    "train_windows": len(full_idx)}
             for sp in SPECIES:
@@ -194,7 +238,8 @@ res = pd.DataFrame(rows)
 Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 res.to_csv(args.out, index=False)
 pp = pd.concat(preds, ignore_index=True)
-pp = pp.join(df[["file", "start_s", "kind", "species", "toy_dist"]], on="row")
+join_cols = ["file", "start_s", "kind", "species", "toy_dist"] + [c for c in ["noise_kind", "snr_db"] if c in df]
+pp = pp.join(df[join_cols], on="row")
 pp.to_parquet(Path(args.out).with_name("train_eval_predictions.parquet"), index=False)
 
 show = res.set_index("candidate")[[f"toy_{SHORT[s]}" for s in SPECIES] + ["toy_room_ok", "FA_empty_room", "FA_freesound_test",
@@ -221,6 +266,19 @@ if len(hand):
     h["source"] = np.where(kind[h.row] == "music_toy", "music+toy", "talking+toy")
     print("\nHand-labeled music / talking + toy windows: what each was called\n")
     print(pd.crosstab([h.candidate, h.source, h.truth], h.pred).to_string())
+if len(mix_test):
+    mm = pp[pp.exam == "mix"].copy()
+    mm["right"] = mm.truth == mm.pred
+    mm["wrong_bird"] = (mm.pred != mm.truth) & (mm.pred != "noise")
+    print("\nSYNTHETIC TOY-UNDER-NOISE exam (test-split crowd/music; toy level vs noise level in dB;")
+    print("each mix judged by a head that never trained on its toy file). Fraction of calls named right:\n")
+    print(mm.pivot_table(index="candidate", columns=["noise_kind", "snr_db"], values="right",
+                         aggfunc="mean").round(2).to_string())
+    print("\n  ...by species, all ratios:")
+    print(mm.pivot_table(index="candidate", columns="truth", values="right", aggfunc="mean")
+          .rename(columns=SHORT).round(2).to_string())
+    print("\n  wrong-bird answers in mixes (should be ~0): "
+          + ", ".join(f"{c} {int(g.wrong_bird.sum())}" for c, g in mm.groupby("candidate")))
 mu = pp[(pp.exam == "music") & (pp.pred != "noise")]
 if len(mu):
     print("\nMusic windows wrongly called a bird, by candidate and Freesound file (worst first):\n")
@@ -232,12 +290,13 @@ if len(mu):
 # Uses exam windows only (never training windows).
 CONFS = [-1.0, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
 GROUPS = {"quiet_room": "toy alone, quiet room", "crowd_easy": "toy 1 ft / crowd 1 m",
-          "crowd_hard": "toy 1 m / crowd 1 ft", "music_talk": "toy with music or talking"}
-ex = pp[pp.exam.isin(["toy", "crowd_toy", "hand"] + list(noise_exams))].copy()
+          "crowd_hard": "toy 1 m / crowd 1 ft", "music_talk": "toy with music or talking",
+          "mixes": "synthetic toy under crowd/music (all ratios)"}
+ex = pp[pp.exam.isin(["toy", "crowd_toy", "hand", "mix"] + list(noise_exams))].copy()
 ex["group"] = np.select([ex.exam == "toy",
                          (ex.exam == "crowd_toy") & (ex.toy_dist == "1ft"),
                          (ex.exam == "crowd_toy") & (ex.toy_dist == "1m"),
-                         ex.exam == "hand"], list(GROUPS), "noise_only")
+                         ex.exam == "hand", ex.exam == "mix"], list(GROUPS), "noise_only")
 calls, quiet = ex[ex.truth != "noise"], ex[ex.truth == "noise"]
 print("\n" + "=" * 90)
 print("CHOOSING CUSTOM_CONF: what sagemic would REPORT at each setting (exam windows only)")

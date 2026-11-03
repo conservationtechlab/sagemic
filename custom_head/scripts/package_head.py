@@ -3,7 +3,8 @@
   python package_head.py --data ../embeddings/dataset.parquet --out sagemic_head.joblib \
                          --check ../results/train_eval_predictions.parquet
 
-What it builds (recipe field_toys_music, threshold 0.7, linear SVM: the model the exams scored):
+What it builds (--recipe, default field_toys_music; threshold 0.7; linear SVM: the model the exams scored).
+With --recipe field_toys_music_mix --mixes mixes.parquet it also adds the synthetic training mixes.
   * Same training data as train_eval.py's "full" field_toys_music model: Xeno-canto windows with stock BirdNET
     own score >= 0.7 from the 80% training recordings, Freesound train noise, 2 of 3 ambient
     files, training-split music, and all toy-alone call/room-tone windows.
@@ -41,9 +42,18 @@ ap.add_argument("--cap", type=int, default=3000, help="must match train_eval.py 
 ap.add_argument("--C", type=float, default=1.0)
 ap.add_argument("--custom-conf", type=float, default=0.0)
 ap.add_argument("--check", default="", help="train_eval_predictions.parquet to compare against")
+ap.add_argument("--recipe", default="field_toys_music", choices=["field_toys_music", "field_toys_music_mix"])
+ap.add_argument("--mixes", default="", help="mixes.parquet (needed for --recipe field_toys_music_mix)")
+ap.add_argument("--mix-min-snr", type=float, default=None, help="must match the train_eval.py run")
 args = ap.parse_args()
 
+if args.recipe == "field_toys_music_mix" and not args.mixes:
+    ap.error("--recipe field_toys_music_mix needs --mixes")
 df = pd.read_parquet(args.data)
+if args.mixes:  # appended exactly as train_eval.py does, so row numbers line up for --check
+    df = pd.concat([df, pd.read_parquet(args.mixes)], ignore_index=True, join="outer")
+    for col, fill in [("label_src", ""), ("other_dist", ""), ("own", 0.0), ("source_id", "")]:
+        df[col] = df[col].fillna(fill)
 E = [c for c in df.columns if c.startswith("e") and c[1:].isdigit()]
 X = df[E].to_numpy(np.float32)
 lab, role, kind, set_ = df.label.to_numpy(), df.role.to_numpy(), df.kind.to_numpy(), df.set.to_numpy()
@@ -63,6 +73,11 @@ rng = np.random.default_rng(0)
 idx = xc_train[own[xc_train] >= args.threshold]
 xc_pool = np.concatenate([rng.permutation(idx[lab[idx] == sp])[: args.cap or None] for sp in SPECIES])
 train_idx = np.concatenate([xc_pool, noise_train, music_train, toy])
+if args.recipe == "field_toys_music_mix":
+    mt = np.where(set_ == "mix_train")[0]
+    if args.mix_min_snr is not None:
+        mt = mt[df.snr_db.to_numpy()[mt] >= args.mix_min_snr]
+    train_idx = np.concatenate([train_idx, mt])
 
 y = np.array([TO_INT[l] for l in lab[train_idx]])
 model = make_pipeline(StandardScaler(),
@@ -80,8 +95,8 @@ m = joblib.load(args.out)
 assert list(m.classes_) == [0, 1, 2, 3, 4], m.classes_
 if args.check:
     pp = pd.read_parquet(args.check)
-    cand = f"field_toys_music thr{args.threshold} linear"
-    ref = pp[(pp.candidate == cand) & (pp.exam != "toy")]  # toy exam used per-fold models, not the full one
+    cand = f"{args.recipe} thr{args.threshold} linear"
+    ref = pp[(pp.candidate == cand) & ~pp.exam.isin(["toy", "mix"])]  # those exams used per-fold models
     if ref.empty:
         sys.exit(f"no '{cand}' rows in {args.check}; re-run train_eval.py with recipe field_toys_music at this threshold")
     d = m.decision_function(X[ref.row.to_numpy()])

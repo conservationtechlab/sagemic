@@ -35,9 +35,9 @@ SETTINGS:
   AUDIO_DTYPE: "int32"
 
   MODEL_TYPE: "custom"
-  # Report a bird only if its score is above this. 0.0 is the tested setting; see custom_head/README.md
-  # before raising it (0.5 or 1.0 trade missed calls for fewer false alarms).
-  CUSTOM_CONF: 0.0
+  # Can do 1 conf for all, or a list for each class [1.0, 0.5, ex...]
+  # Gave a bit more margin on clips where crowd audio overwhelms the toy
+  CUSTOM_CONF: 0.25
   # Order must stay exactly like this: the model outputs class numbers 0-4.
   CUSTOM_LABELS: [haemorhous_mexicanus, sturnella_neglecta, cyanocitta_stelleri, callipepla_californica, noise]
 
