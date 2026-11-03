@@ -1,0 +1,51 @@
+# --- demo config: sagemic with the custom 4-species + noise head ---
+# Based on example_config.yaml. Everything for the model is final.
+# Before running, replace the three values marked  >>> FROM CURRENT DEMO CONFIG <<<
+# with the values in the demo Pi's existing config.yaml.
+#
+# Run from the repo root (as sagemic_local.service does), so the relative model path resolves:
+#   python sagemic_local.py --config config/demo_custom_head.yaml
+
+PATHS:
+  # >>> FROM CURRENT DEMO CONFIG <<<  the folder the lightbox Pi watches for new clips
+  BASE_PATH: "/path/to/directoryForSagemicFiles"
+
+  # Only used by sagemic_scansend.py (MQTT upload), not by the demo / lightbox
+  PATH_TO_CA_PEM: "/path/to/rootCA"
+  PATH_TO_CRT: "/path/to/clientcrt"
+  PATH_TO_KEY: "/path/to/clientkey"
+
+  # Relative to the repo root. Use an absolute path if sagemic runs from another folder.
+  CUSTOM_MODEL_PATH: "custom_head/sagemic_head.joblib"
+
+SETTINGS:
+  LATITUDE: 32.7157
+  LONGITUDE: -117.1611
+  LOCAL_TZ: "America/Los_Angeles"
+
+  # The model was trained on 48 kHz audio in 3-second blocks: keep these two as they are.
+  SAMPLERATE: 48000
+  BLOCK_DURATION: 3
+  # Not used when MODEL_TYPE is "custom" (CUSTOM_CONF applies instead); kept for "birdnet" mode.
+  CONFIDENCE_THRESHOLD: 0.1
+
+  # >>> FROM CURRENT DEMO CONFIG <<<  exact device name from `arecord -l`
+  # audiomoth: 48kHz AudioMoth USB Microphone
+  # inmp441: snd_rpi_googlevoicehat_soundcar
+  AUDIO_DEVICE: "exact_name_from_arecord-l"
+  # >>> FROM CURRENT DEMO CONFIG <<<  "int16" or "int32" (BirdNET gives the same result for either)
+  AUDIO_DTYPE: "int16_or_int32"
+
+  MODEL_TYPE: "custom"
+  # Can do 1 conf for all, or a list for each class [1.0, 0.5, ex...]
+  # Gave a bit more margin on clips where crowd audio overwhelms the toy
+  CUSTOM_CONF: 0.25
+  # Order must stay exactly like this: the model outputs class numbers 0-4.
+  CUSTOM_LABELS: [haemorhous_mexicanus, sturnella_neglecta, cyanocitta_stelleri, callipepla_californica, noise]
+
+MQTT:
+  # Only used by sagemic_scansend.py, not by the demo / lightbox
+  PORT: 8883
+  BASE_TOPIC: "topic_name"
+  DEVICE: "device_name"
+  BROKER: "<ip>"
