@@ -1,0 +1,31 @@
+# Never commit secrets: station config (MQTT passwords), certificates, keys,
+# answers files, backups
+config.yaml
+config.yaml.bak*
+*.answers
+answers*.txt
+certs/
+*.pem
+*.crt
+*.key
+*.p12
+*.enc
+.env
+hub.env
+
+# Python and editor leftovers (.sagemic: the Python environment made inside the clone)
+__pycache__/
+*.pyc
+*.egg-info/
+.sagemic/
+.venv/
+venv/
+.vscode/
+
+# Written on the station by sagemic_update.py
+station/update_state.json
+
+# Recordings and test data
+*.flac
+*.wav
+test_data/

@@ -1,0 +1,182 @@
+#!/bin/bash
+# sagemic-helper - the ONLY root-level actions the SageMic agent may perform.
+# Installed as /usr/local/sbin/sagemic-helper (root-owned) and allowed in
+# /etc/sudoers.d/sagemic. Every argument is checked against a fixed list.
+set -euo pipefail
+
+die() { echo "sagemic-helper: $*" >&2; exit 2; }
+later() { setsid -f sh -c "sleep $1; $2" >/dev/null 2>&1; }   # run after reply is sent
+check_install_args() {   # station folder, config file (run-installer, update-guard)
+  path_re='^/home/[a-z_][a-z0-9_-]*(/[A-Za-z0-9._-]+)+$'
+  [[ "$1" =~ $path_re && "$1" != *..* && -d "$1" ]] || die "folder not allowed: $1"
+  [[ "$2" =~ $path_re && "$2" != *..* && -f "$2" ]] || die "config not allowed: $2"
+  [[ -f "$1/install_agent.sh" ]] || die "no install_agent.sh in $1"
+  owner=$(stat -c %U "$1")
+  [[ "$owner" != root ]] || die "folder must belong to the SageMic user"
+}
+GUARD=sagemic-update-guard     # transient timer + service, armed by run-installer
+
+action="${1:-}"
+case "$action" in
+  restart)
+    unit="${2:-}"
+    case "$unit" in
+      sagemic_local.service|sagemic_scansend.timer|sagemic_cleanup.timer)
+        systemctl restart "$unit" ;;
+      sagemic_agent.service)
+        later 2 "systemctl restart $unit" ;;
+      *) die "unit not allowed: $unit" ;;
+    esac ;;
+  start)
+    unit="${2:-}"
+    case "$unit" in
+      sagemic_scansend.service|sagemic_cleanup.service) systemctl start --no-block "$unit" ;;
+      *) die "unit not allowed: $unit" ;;
+    esac ;;
+  set-interval)
+    name="${2:-}"; secs="${3:-}"
+    case "$name" in scansend|cleanup) ;; *) die "timer not allowed: $name" ;; esac
+    [[ "$secs" =~ ^[0-9]+$ ]] || die "seconds must be a number"
+    (( secs >= 15 && secs <= 604800 )) || die "seconds out of range (15-604800)"
+    dir="/etc/systemd/system/sagemic_${name}.timer.d"
+    mkdir -p "$dir"
+    # The empty OnUnitActiveSec= resets ALL of the timer's triggers (systemd.timer),
+    # OnBootSec too - so it is set again here, or the timer never starts after a boot.
+    new=$(printf '[Timer]\nOnUnitActiveSec=\nOnBootSec=2min\nOnUnitActiveSec=%ss\n' "$secs")
+    if [[ ! -f "$dir/interval.conf" || "$(cat "$dir/interval.conf")" != "$new" ]]; then
+      printf '%s\n' "$new" > "$dir/interval.conf"
+      systemctl daemon-reload
+      systemctl restart "sagemic_${name}.timer"
+      # a restarted timer waits for a run of its service before it schedules the next one
+      systemctl start --no-block "sagemic_${name}.service"
+    fi ;;
+  set-time)
+    epoch="${2:-}"
+    [[ "$epoch" =~ ^[0-9]{10}$ ]] || die "epoch must be 10 digits"
+    date -s "@$epoch" >/dev/null
+    command -v fake-hwclock >/dev/null && fake-hwclock save || true ;;
+  run-installer)
+    # Used by sagemic_update.py. Runs install_agent.sh in its own systemd
+    # unit, so it finishes even when it restarts the update service itself.
+    # Exit code -> /run/sagemic_install.rc, output -> /run/sagemic_install.log (RAM).
+    # Also (re)arms the update guard: update-guard runs 30 min after this.
+    dir="${2:-}"; cfg="${3:-}"
+    check_install_args "$dir" "$cfg"
+    systemctl stop 'sagemic-install-*.service' 2>/dev/null || true
+    rm -f /run/sagemic_install.rc
+    systemctl stop "$GUARD.timer" 2>/dev/null || true
+    systemctl reset-failed "$GUARD.timer" "$GUARD.service" 2>/dev/null || true
+    systemd-run --quiet --on-active=30min --unit="$GUARD" \
+      /usr/local/sbin/sagemic-helper update-guard "$dir" "$cfg" >/dev/null 2>&1 || \
+      logger -t sagemic-update-guard "could not arm the update guard (the update goes on without it)"
+    systemd-run --quiet --collect --unit="sagemic-install-$(date +%s)" --setenv=SUDO_USER="$owner" \
+      /bin/bash -c 'cd "$1" && bash ./install_agent.sh "$2" > /run/sagemic_install.log 2>&1; echo $? > /run/sagemic_install.rc' \
+      sagemic-install "$dir" "$cfg" ;;
+  update-guard)
+    # Run as root by the timer run-installer arms (30 min after an install or
+    # rollback started). If update_state.json still shows an update in progress
+    # (the updater hung or keeps crashing), stop the updater, copy that update's
+    # backup (~/sagemic_backup/<date-time>/) back into the station folder, mark
+    # the update failed and rerun install_agent.sh. Log: journalctl -t sagemic-update-guard
+    dir="${2:-}"; cfg="${3:-}"
+    check_install_args "$dir" "$cfg"
+    log() { logger -t sagemic-update-guard -- "$*"; echo "$*"; }
+    state="$dir/update_state.json"
+    { read -r phase; read -r backup; } < <(python3 -c '
+import json, sys
+try:
+    s = json.load(open(sys.argv[1]))
+except Exception:
+    s = {}
+s = s if isinstance(s, dict) else {}
+print(s.get("phase") or "idle"); print(s.get("backup") or "")' "$state")
+    phase=${phase//[^a-z_]/}; backup=${backup//[$'\r\n']/}
+    if [[ "$phase" == idle ]]; then log "no update in progress - nothing to do"; exit 0; fi
+    home=$(getent passwd "$owner" | cut -d: -f6)
+    if [[ ! "$backup" =~ ^"$home"/sagemic_backup/[0-9]{8}-[0-9]{6}$ || ! -d "$backup" || -L "$backup" ]]; then
+      backup=$(find "$home/sagemic_backup" -mindepth 1 -maxdepth 1 -type d -regextype posix-extended \
+               -regex '.*/[0-9]{8}-[0-9]{6}' 2>/dev/null | sort | tail -1 || true)
+    fi
+    [[ -n "$backup" ]] || { log "update still $phase but no backup in $home/sagemic_backup - left as it is"; exit 1; }
+    log "update still $phase after 30 min - restoring $backup into $dir"
+    systemctl stop sagemic_update.service 'sagemic-install-*.service' 2>/dev/null || true
+    group=$(id -gn "$owner")
+    n=0
+    for f in "$backup"/*; do
+      name=$(basename "$f")
+      [[ "$name" =~ ^(sagemic-helper|[A-Za-z0-9_][A-Za-z0-9_.-]*\.(py|sh|txt|md))$ && -f "$f" && ! -L "$f" ]] || continue
+      mode=644; [[ "$name" == sagemic-helper || "$name" == *.sh ]] && mode=755
+      install -o "$owner" -g "$group" -m "$mode" "$f" "$dir/$name" && n=$((n + 1))
+    done
+    python3 -c '
+import json, os, sys, time
+path, backup, phase = sys.argv[1:4]
+try:
+    s = json.load(open(path))
+except Exception:
+    s = {}
+s = s if isinstance(s, dict) else {}
+s["installed"] = s.get("previous")
+s["phase"] = "idle"
+s["last_result"] = {"id": s.get("id", ""), "ok": False, "time": int(time.time()),
+                    "message": "update guard: still " + phase + " after 30 min - restored " + backup}
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(s, f, indent=1)
+os.replace(tmp, path)' "$state" "$backup" "$phase" || log "could not update $state"
+    chown "$owner:$group" "$state" 2>/dev/null || true
+    log "restored $n file(s) - running install_agent.sh"
+    rc=0
+    (cd "$dir" && SUDO_USER="$owner" bash ./install_agent.sh "$cfg" > /run/sagemic_install.log 2>&1) || rc=$?
+    if (( rc == 0 )); then
+      log "install_agent.sh finished - the previous software is back (log: /run/sagemic_install.log)"
+    else
+      log "install_agent.sh FAILED (exit $rc) - see /run/sagemic_install.log; connect over SSH"; exit 1
+    fi ;;
+  update-guard-stop)
+    # Used by sagemic_update.py when an update (or its rollback) has finished.
+    systemctl stop "$GUARD.timer" 2>/dev/null || true ;;
+  usb-power)
+    # Used by sagemic_local.py (SETTINGS: USB_OFF_OUTSIDE_ACTIVE_HOURS): USB port power
+    # off outside the active hours, on again for them. Uses uhubctl. The Pi model
+    # comes from /proc/device-tree/model. Pi 4: the four USB ports are switched
+    # together (hub 1-1). Pi 5: every hub uhubctl lists as able to switch power
+    # ("ppps") - all its USB ports. Other Pis need the hub(s) given as
+    # SETTINGS: USB_POWER_LOCATION (list them with: sudo uhubctl), which also
+    # overrides the above.
+    # /run/sagemic_usb_off marks "switched off by SageMic" (gone after a reboot,
+    # when the ports are powered again anyway).
+    state="${2:-}"; loc="${3:-}"
+    case "$state" in on|off) ;; *) die "state must be on or off" ;; esac
+    loc_re='^[0-9]+(-[0-9]+(\.[0-9]+)*)?(,[0-9]+(-[0-9]+(\.[0-9]+)*)?)*$'
+    [[ -z "$loc" || "$loc" =~ $loc_re ]] || die "hub location not allowed: $loc"
+    command -v uhubctl >/dev/null || die "uhubctl not installed (sudo apt install uhubctl)"
+    if [[ "$state" == off ]]; then
+      # never cut the network or the disk the system runs from
+      [[ "$(readlink -f /sys/class/net/eth0/device 2>/dev/null)" == */usb* ]] && \
+        die "eth0 is a USB device on this Pi - switching USB power off would cut the network"
+      root_src=$(findmnt -no SOURCE / 2>/dev/null || true)
+      root_disk=$(lsblk -no PKNAME "$root_src" 2>/dev/null | head -1 || true)
+      [[ -n "$root_disk" && "$(lsblk -ndo TRAN "/dev/$root_disk" 2>/dev/null)" == usb ]] && \
+        die "the system disk is on USB - switching USB power off would stop the Pi"
+    fi
+    if [[ -z "$loc" ]]; then
+      model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)
+      case "$model" in
+        *"Raspberry Pi 4"*) loc="1-1" ;;      # Pi 4 / Pi 400: all USB ports, together
+        *"Raspberry Pi 5"*)                    # Pi 5 / Pi 500: every hub that can switch power
+          loc=$(uhubctl 2>/dev/null | sed -n 's/^Current status for hub \([0-9][0-9.-]*\) \[.*ppps.*/\1/p' | paste -sd, -)
+          [[ -n "$loc" && "$loc" =~ $loc_re ]] || \
+            die "no USB hub that can switch power found on this Pi 5 - check: sudo uhubctl" ;;
+        *) die "set SETTINGS: USB_POWER_LOCATION for this Pi (${model:-unknown model}) - list hubs with: sudo uhubctl" ;;
+      esac
+    fi
+    IFS=, read -ra locs <<< "$loc"
+    for l in "${locs[@]}"; do
+      uhubctl -l "$l" -a "$state" >/dev/null 2>&1 || die "uhubctl -l $l -a $state failed"
+    done
+    if [[ "$state" == off ]]; then touch /run/sagemic_usb_off; else rm -f /run/sagemic_usb_off; fi ;;
+  reboot)   later 3 "systemctl reboot" ;;
+  poweroff) later 3 "systemctl poweroff" ;;
+  *) die "usage: restart|start|set-interval|set-time|run-installer|update-guard|update-guard-stop|usb-power|reboot|poweroff" ;;
+esac
