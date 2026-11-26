@@ -14,8 +14,12 @@ import sounddevice as sd
 from birdnetlib import RecordingBuffer
 from birdnetlib.analyzer import Analyzer
 
-LATITUDE = 32.7157
-LONGITUDE = -117.1611
+# Latitude (decimal degrees). Positive = North. Range: -90 .. +90
+LATITUDE = None  # e.g., 32.7157
+
+# Longitude (decimal degrees). Positive = East. Range: -180 .. +180
+LONGITUDE = None  # e.g., -117.1611
+
 SAMPLERATE = 48000
 CONFIDENCE_THRESHOLD = 0.1
 
