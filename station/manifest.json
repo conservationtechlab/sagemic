@@ -1,0 +1,42 @@
+{
+  "app": "SageMic Station",
+  "files": [
+    "station/manifest.json",
+    "station/install_agent.sh",
+    "station/sagemic-helper",
+    "station/sagemic_agent.py",
+    "station/sagemic_update.py",
+    "sagemic_local.py",
+    "sagemic_scansend.py"
+  ],
+  "checks": [
+    {"label": "self-test of the new sagemic_update.py",
+     "cmd": ["{python}", "station/sagemic_update.py", "--config", "{config}", "--self-test"]},
+    {"label": "import of the new sagemic_agent.py",
+     "cmd": ["{python}", "-c", "import sys; sys.path.insert(0, 'station'); import sagemic_agent"]},
+    {"label": "dry run of the new sagemic_scansend.py",
+     "cmd": ["{python}", "sagemic_scansend.py", "--config", "{config}", "--dry-run"]}
+  ],
+  "services": ["sagemic_agent", "sagemic_update", "sagemic_scansend.timer"],
+  "main_service": "sagemic_local",
+  "heartbeat": "/dev/shm/sagemic_detector.json",
+  "data": {
+    "test": ["{python}", "sagemic_local.py", "--config", "{config}", "--test-model", "{folder}"],
+    "restart": "sagemic_local.service",
+    "extensions": [".tflite", ".txt"],
+    "standard": "standard BirdNET"
+  },
+  "describe": {
+    "app": "SageMic Station",
+    "columns": [
+      {"label": "Detector", "path": "services.sagemic_local"}
+    ],
+    "settings": false,
+    "actions": {},
+    "data": {
+      "label": "BirdNET model",
+      "standard": "standard BirdNET",
+      "help": "A model zip holds either a species list (one .txt file, one species per line written as Scientific name_Common name, exactly as in BirdNET's labels - the standard BirdNET model then reports only those species) or a custom classifier trained with BirdNET-Analyzer (its .tflite file and its labels .txt file). Each station tests the model before using it and goes back to its previous model if the detector does not start with it."
+    }
+  }
+}
