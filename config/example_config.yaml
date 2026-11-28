@@ -27,6 +27,12 @@ SETTINGS:
   AUDIO_DTYPE: "int16_or_int32"
 
 MQTT:
+  # BROKER picks how clips are sent:
+  #   SageMic (straight to the cloud broker): BROKER is the broker's address,
+  #     PORT 8883, with the certificates in PATHS.
+  #   SageMic Station with a SageMic hub: BROKER: hub, PORT: 1883, and the
+  #     station login below (the certificates in PATHS are not used). The hub
+  #     can then send software and model updates (UPDATE: KEY).
   # Default Port for MQTTS
   PORT: 8883
   # Usage: NodeRed assumes the first slash parses the base_topic and device name.
@@ -34,3 +40,12 @@ MQTT:
   BASE_TOPIC: "topic_name"
   DEVICE: "device_name"
   BROKER: "<ip>"
+  # SageMic hub only: the station login (the password from the hub's setup).
+  # USERNAME: "sagemic-station"
+  # PASSWORD: "<station MQTT password from the hub>"
+
+# SageMic hub only: software and model updates sent from the hub's control page
+# must be signed with this key (the update key from the hub's setup).
+# Updates are refused while it is empty.
+UPDATE:
+  KEY: ""

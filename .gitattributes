@@ -1,0 +1,12 @@
+# Keep Linux (LF) line endings in the repository and on checkout, even on
+# Windows: bash scripts with Windows (CRLF) endings fail on the Pi.
+* text=auto eol=lf
+
+# Files that are never text
+*.tflite binary
+*.flac binary
+*.wav binary
+*.zip binary
+*.jpg binary
+*.png binary
+*.pdf binary

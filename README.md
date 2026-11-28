@@ -59,6 +59,58 @@ See the readme in /systemd for instructions to enable the scansend service that 
 MQTTS. See this repo [SageBRUSH-Xylem](https://github.com/conservationtechlab/sagebrush-xylem) for instructions on how to set up the MQTT Broker service and generate new keys needed to paste in the config file to allow for secure transmission
 of audio clips.
 
+### With a SageMic hub: software and model updates
+With `MQTT: BROKER: hub` in config.yaml the station sends its clips to a SageMic hub
+over HaLow instead of to the cloud broker, and the hub's control page can send the
+station software updates and BirdNET models (a species list, or a custom classifier
+trained with BirdNET-Analyzer). The same `sagemic_local.py` and `sagemic_scansend.py`
+run in both cases; `BROKER` picks the mode.
+
+The station programs for this are in `station/`:
+- `sagemic_update.py` - receives signed software packages and models from the hub,
+  tests them, installs them, and rolls back if the station does not start properly.
+- `sagemic_agent.py` - tells the hub the station is online and records the clips the
+  hub confirmed it saved.
+- `sagemic-helper` - the only actions the programs may run as root (run the installer,
+  restart the detector, the rollback guard).
+- `install_agent.sh` - installs all four services (detector, sender, agent, updater).
+- `manifest.json` - the files of an update package and where they go, the checks run before
+  installing, the services that must be running afterwards, how a model is tested and
+  switched on, and what the hub's control page shows for the station (`describe`).
+
+Set up (after the Installation above):
+1. From the hub's setup, get the station MQTT password (the hub's broker login for
+   stations, user `sagemic-station`) and the update key (the key the hub signs updates
+   with).
+2. Copy `config/example_config.yaml` to `config/config.yaml` and set, as well as the
+   PATHS and SETTINGS:
+   ```
+   MQTT:
+     PORT: 1883
+     BASE_TOPIC: "sagemic"
+     DEVICE: "<station name>"
+     BROKER: hub
+     USERNAME: "sagemic-station"
+     PASSWORD: "<station MQTT password from the hub>"
+   UPDATE:
+     KEY: "<update key from the hub>"
+   ```
+3. Make sure paho-mqtt 2 is installed: `~/.sagemic/bin/pip install -U "paho-mqtt>=2"`
+4. Install the services (they replace the `systemd/` units of the same names):
+   ```
+   cd ~/sagemic
+   sudo bash station/install_agent.sh
+   ```
+   Pass: it ends with `sagemic_local`, `sagemic_scansend.timer`, `sagemic_agent` and
+   `sagemic_update` all `active`, and the station appears on the hub's control page.
+
+A software update package is a zip of a tagged commit, laid out as in the repository.
+Tag the commit with the version name, make the zip from the tag, and upload it on the
+hub's control page (each version number is used once):
+```
+git archive --format=zip -o ../SageMicStation_Version_004.zip SageMicStation_Version_004 station sagemic_local.py sagemic_scansend.py
+```
+
 
 ## Birbler
 Currently: sagemic_stream.py (runs on remote server, with instruction steps for pi below)
